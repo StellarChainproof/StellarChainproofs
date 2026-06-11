@@ -1,81 +1,291 @@
-# ⛓️ ChainProof
+# ChainProof Documentation
 
 **Smart Contract Audit Copilot** — real-time vulnerability scanner, gas advisor, and audit report generator for Solidity.
 
 ---
 
-## Why ChainProof?
+## Table of Contents
 
-- 🔴 **$1.8B+ lost** to smart contract exploits in 2023 — most are preventable
-- 🐢 **6-week wait** for professional audits, costing $30k–$100k
-- 🌍 **Zero accessible tooling** for indie devs and small DAOs in emerging markets
-
-ChainProof gives every developer a security copilot in their editor, CLI, and CI pipeline.
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Scan Pipeline](#scan-pipeline)
+- [Repository Layout](#repository-layout)
+- [Installation](#installation)
+- [CLI Reference](#cli-reference)
+- [VS Code Extension](#vs-code-extension)
+- [GitHub Action](#github-action)
+- [Vulnerability Rules](#vulnerability-rules)
+- [Data Model](#data-model)
+- [Configuration](#configuration)
+- [Development Guide](#development-guide)
+- [Roadmap](#roadmap)
+- [License](#license)
 
 ---
 
-## Monorepo Structure
+## Overview
+
+ChainProof helps developers catch smart contract vulnerabilities early — in the editor, terminal, and CI pipeline — without waiting weeks or paying tens of thousands for a full audit.
+
+| Problem | ChainProof response |
+|---------|---------------------|
+| $1.8B+ lost to exploits in 2023 | Built-in SWC-aligned detectors + optional Slither |
+| 6-week audit queues at $30k–$100k | Instant scans on every save and PR |
+| No tooling for indie devs and small DAOs | Free, open-source CLI, extension, and GitHub Action |
+
+### What ChainProof does
+
+- Parses Solidity source into an AST and runs custom vulnerability rules
+- Optionally integrates [Slither](https://github.com/crytic/slither) for broader static analysis
+- Flags gas optimization opportunities separately from security findings
+- Optionally sends critical/high findings to Claude for contextual explanations and fixes
+- Emits reports as terminal tables, JSON, or Markdown
+
+> **Disclaimer:** ChainProof is a developer tool, not a substitute for a professional security audit. Always have critical contracts reviewed by qualified humans before mainnet deployment.
+
+---
+
+## Architecture
+
+All user-facing packages share a single scanning engine (`@chainproof/core`). Every interface calls the same `scan()` function with a `ScanConfig` object.
+
+```mermaid
+flowchart TB
+    subgraph clients [Clients]
+        cli[CLI]
+        vscode[VS Code]
+        gha[GitHub Action]
+    end
+
+    subgraph core [Core Engine]
+        scanner[Scanner]
+        parser[AST Parser]
+        rules[SWC Rules]
+        slitherWrap[Slither Wrapper]
+        llm[LLM Layer]
+        report[Reports]
+    end
+
+    subgraph ext [External]
+        slitherBin[Slither]
+        claude[Claude API]
+    end
+
+    cli --> scanner
+    vscode --> scanner
+    gha --> scanner
+    scanner --> parser
+    scanner --> rules
+    scanner --> slitherWrap
+    scanner --> llm
+    scanner --> report
+    slitherWrap --> slitherBin
+    llm --> claude
+```
+
+### Package responsibilities
+
+| Package | NPM name | Purpose |
+|---------|----------|---------|
+| `packages/core` | `@chainproof/core` | AST parsing, rules, Slither wrapper, LLM layer, report generation |
+| `packages/cli` | `@chainproof/cli` | Command-line interface (`scan`, `check`, `init`) |
+| `packages/vscode-extension` | `chainproof-vscode` | Inline diagnostics, auto-scan on save, audit report command |
+| `packages/github-action` | — | CI gate, PR comments, workflow annotations, artifacts |
+
+---
+
+## Scan Pipeline
+
+Each `.sol` file passes through the pipeline below. Directory targets are expanded recursively before scanning.
+
+```mermaid
+flowchart TB
+    a[Collect files] --> b[Parse AST]
+    b --> c{Valid AST}
+    c -->|no| d[Parse error]
+    c -->|yes| e[Run rules]
+    e --> f[Gas hints]
+    f --> g{Slither on}
+    g -->|yes| h[Merge Slither]
+    g -->|no| i[Filter severity]
+    h --> i
+    i --> j{LLM on}
+    j -->|yes| k[Enhance findings]
+    j -->|no| l[File result]
+    k --> l
+```
+
+### Severity levels
+
+Findings are ranked for filtering and CI gating:
+
+| Severity | Rank | Typical use |
+|----------|------|-------------|
+| `critical` | 5 | Immediate blocker — e.g. reentrancy |
+| `high` | 4 | Must fix before deploy — e.g. `tx.origin` auth |
+| `medium` | 3 | Should review — e.g. unchecked return values |
+| `low` | 2 | Minor issues |
+| `info` | 1 | Informational notes |
+| `gas` | 0 | Optimization hints (not security vulnerabilities) |
+
+---
+
+## Repository Layout
 
 ```
 chainproof/
 ├── packages/
-│   ├── core/               # Shared scanning engine
+│   ├── core/
 │   │   └── src/
-│   │       ├── ast/        # Solidity parser + Slither wrapper
-│   │       ├── rules/      # SWC vulnerability detectors
-│   │       ├── llm/        # AI-powered explanation layer
-│   │       └── report/     # Markdown / JSON / table generators
-│   ├── cli/                # `chainproof` CLI tool
-│   ├── vscode-extension/   # VS Code extension with inline diagnostics
-│   └── github-action/      # GitHub Action for CI/CD gates
+│   │       ├── ast/          # Solidity parser + Slither wrapper
+│   │       ├── rules/        # SWC vulnerability detectors + gas optimizer
+│   │       ├── llm/          # Claude-powered explanation layer
+│   │       ├── report/       # Markdown / JSON / table generators
+│   │       ├── scanner.ts    # Main scan orchestrator
+│   │       └── types.ts      # Shared TypeScript interfaces
+│   ├── cli/                  # `chainproof` CLI
+│   ├── vscode-extension/     # VS Code extension
+│   └── github-action/        # GitHub Action for CI/CD
 ├── examples/
 │   └── contracts/
 │       ├── VulnerableVault.sol   # Intentionally vulnerable (test target)
-│       └── SecureVault.sol       # Fixed version
-└── .github/workflows/audit.yml   # CI pipeline example
+│       └── SecureVault.sol       # Patched reference implementation
+└── .github/workflows/audit.yml   # Example CI workflow
 ```
 
 ---
 
-## Quick Start
+## Installation
 
-### CLI
+### Prerequisites
+
+| Tool | Version | Required for |
+|------|---------|--------------|
+| Node.js | ≥ 18 | CLI, extension, core engine |
+| Python | ≥ 3.10 | Slither (optional) |
+| `slither-analyzer` | latest | Extended static analysis (optional) |
 
 ```bash
-# Install globally
+# Optional but recommended
+pip install slither-analyzer
+```
+
+### From source (development)
+
+```bash
+git clone https://github.com/your-org/chainproof
+cd chainproof
+npm install          # installs all workspaces
+npm run build        # compiles TypeScript in all packages
+```
+
+### Global CLI install
+
+```bash
 npm install -g @chainproof/cli
+```
 
-# Scan a file or directory
+---
+
+## CLI Reference
+
+### `chainproof scan`
+
+Scan one or more `.sol` files or directories.
+
+```bash
 chainproof scan contracts/
-
-# Scan with LLM enhancement
-chainproof scan contracts/ --api-key YOUR_ANTHROPIC_KEY
-
-# Generate a markdown audit report
 chainproof scan contracts/ --format markdown --output audit.md
+chainproof scan contracts/ --api-key YOUR_ANTHROPIC_KEY
+chainproof scan contracts/ --min-severity high --no-slither
+```
 
-# Fast CI check (exits 1 on critical/high)
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--no-slither` | Slither on | Skip Slither even if installed |
+| `--no-llm` | LLM on if key set | Skip Claude enhancement |
+| `--api-key <key>` | `$ANTHROPIC_API_KEY` | Anthropic API key |
+| `--min-severity <level>` | `low` | Filter findings below this level |
+| `--format <format>` | `table` | Output: `table`, `json`, or `markdown` |
+| `--output <file>` | stdout | Write report to file |
+
+**Exit codes:** `0` if no critical/high findings; `1` if critical or high issues are detected.
+
+When using the default `table` format without `--output`, a full Markdown report is also saved to `chainproof-report.md`.
+
+### `chainproof check`
+
+Fast pass/fail check for CI. Only reports critical and high findings. LLM is always disabled.
+
+```bash
 chainproof check contracts/
+```
 
-# Create a config file
+Exits `1` on any critical or high severity finding.
+
+### `chainproof init`
+
+Creates a `.chainproofrc.json` config file in the current directory.
+
+```bash
 chainproof init
 ```
 
-### VS Code Extension
+---
 
-1. Install from the VS Code Marketplace (search "ChainProof")
-2. Open any `.sol` file — diagnostics appear automatically
-3. Right-click → **ChainProof: Scan Current File**
-4. Command Palette → **ChainProof: Generate Audit Report**
+## VS Code Extension
 
-Configure in Settings → ChainProof:
-- `chainproof.enableOnSave` — auto-scan on save (default: true)
-- `chainproof.useSlither` — enable Slither (default: true)
-- `chainproof.useLLM` — enable AI explanations (default: false)
-- `chainproof.apiKey` — Anthropic API key
-- `chainproof.minSeverity` — minimum severity to show
+Install from the VS Code Marketplace (search **ChainProof**) or load from `packages/vscode-extension` during development.
 
-### GitHub Action
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `ChainProof: Scan Current File` | Scan the active `.sol` file |
+| `ChainProof: Scan Entire Workspace` | Scan all open Solidity files |
+| `ChainProof: Generate Audit Report` | Write `chainproof-audit-report.md` |
+| `ChainProof: Clear Diagnostics` | Remove all ChainProof diagnostics |
+
+### Behavior
+
+```mermaid
+sequenceDiagram
+    participant Dev as Developer
+    participant IDE as VS Code
+    participant Ext as Extension
+    participant Core as Core Engine
+
+    Dev->>IDE: Open or save file
+    IDE->>Ext: Document event
+    Ext->>Core: scan
+    Core-->>Ext: ScanResult
+    Ext->>IDE: Diagnostics
+    Ext->>IDE: Status bar
+```
+
+Findings appear in the **Problems** panel with severity mapped to VS Code diagnostic levels:
+
+- `critical` / `high` → Error
+- `medium` → Warning
+- `low` / `info` / `gas` → Information or Hint
+
+### Settings
+
+Configure under **Settings → ChainProof**:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `chainproof.enableOnSave` | `true` | Auto-scan on save |
+| `chainproof.useSlither` | `true` | Run Slither if available |
+| `chainproof.useLLM` | `false` | Enhance findings with Claude |
+| `chainproof.apiKey` | `""` | Anthropic API key (or `ANTHROPIC_API_KEY` env) |
+| `chainproof.minSeverity` | `low` | Minimum severity to display |
+
+---
+
+## GitHub Action
+
+Add ChainProof to your workflow to gate merges on security findings.
 
 ```yaml
 # .github/workflows/audit.yml
@@ -90,78 +300,258 @@ Configure in Settings → ChainProof:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
+### Action inputs
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `targets` | `contracts/` | Space-separated paths to scan |
+| `min-severity` | `high` | Fail CI at this severity or above |
+| `use-slither` | `true` | Run Slither if installed on runner |
+| `api-key` | `""` | Anthropic API key for LLM enhancement |
+| `report-format` | `markdown` | PR comment format |
+| `upload-report` | `true` | Write reports to `chainproof-reports/` |
+| `fail-on-gas` | `false` | Fail CI when gas hints are present |
+
+### Action outputs
+
+| Output | Description |
+|--------|-------------|
+| `critical-count` | Number of critical findings |
+| `high-count` | Number of high findings |
+| `total-count` | Total findings including gas hints |
+| `report-path` | Path to generated Markdown report |
+
+### CI workflow
+
+```mermaid
+flowchart TB
+    a[PR or push] --> b[Setup runner]
+    b --> c[Scan contracts]
+    c --> d[PR comment]
+    c --> e[Annotations]
+    c --> f[Write reports]
+    f --> g[Upload artifact]
+    c --> h{Meets threshold}
+    h -->|yes| i[Fail CI]
+    h -->|no| j[Pass CI]
+```
+
 The action will:
-- ✅ Scan all `.sol` files in `contracts/`
-- 💬 Post a summary comment on PRs
-- 📎 Upload the full audit report as an artifact
-- ❌ Fail CI if critical/high findings are detected
-- 📝 Annotate the changed files with inline findings
+
+- Scan all `.sol` files under `targets`
+- Post or update a summary comment on pull requests
+- Annotate changed files with inline findings
+- Upload the full audit report as a GitHub Actions artifact
+- Fail the job when findings meet or exceed `min-severity`
+
+See [`.github/workflows/audit.yml`](.github/workflows/audit.yml) for a complete working example.
 
 ---
 
 ## Vulnerability Rules
 
-| ID | SWC | Name | Severity |
-|----|-----|------|----------|
-| CP-107 | SWC-107 | Reentrancy | 🔴 Critical |
-| CP-115 | SWC-115 | tx.origin authentication | 🟠 High |
-| CP-101 | SWC-101 | Integer overflow / underflow | 🟠 High |
-| CP-104 | SWC-104 | Unchecked call return value | 🟡 Medium |
-| GAS-* | — | Gas optimizations | ⛽ Gas |
+### Built-in detectors
 
-Plus all [Slither detectors](https://github.com/crytic/slither/wiki/Detector-Documentation) when Slither is installed.
+| ID | SWC | Name | Severity | Detection approach |
+|----|-----|------|----------|-------------------|
+| CP-107 | [SWC-107](https://swcregistry.io/docs/SWC-107) | Reentrancy | Critical | External call before state update in same function |
+| CP-115 | [SWC-115](https://swcregistry.io/docs/SWC-115) | `tx.origin` authentication | High | `tx.origin` used in `require` or access control |
+| CP-101 | [SWC-101](https://swcregistry.io/docs/SWC-101) | Integer overflow / underflow | High | Arithmetic on pragma `< 0.8` without SafeMath |
+| CP-104 | [SWC-104](https://swcregistry.io/docs/SWC-104) | Unchecked call return value | Medium | `.call` / `.send` return value not checked |
+| GAS-* | — | Gas optimizations | Gas | Storage in loops, packing, `keccak256`, etc. |
+
+When Slither is installed, all [Slither detectors](https://github.com/crytic/slither/wiki/Detector-Documentation) are merged in with deduplication by line + title. Slither findings are prefixed with `SLITHER-`.
+
+### Rule detection flow
+
+```mermaid
+flowchart TB
+    ast[Parsed AST] --> r1[Reentrancy]
+    ast --> r2[Tx Origin]
+    ast --> r3[Overflow]
+    ast --> r4[Unchecked Return]
+    ast --> r5[Gas rules]
+    r1 --> merge[Security findings]
+    r2 --> merge
+    r3 --> merge
+    r4 --> merge
+    slither[Slither] --> merge
+    r5 --> gas[Gas hints]
+```
+
+### Example contracts
+
+`examples/contracts/VulnerableVault.sol` is intentionally vulnerable and should report critical + high findings. `SecureVault.sol` is the patched reference and should scan clean.
+
+```bash
+# After building from source
+node packages/cli/dist/cli.js scan examples/contracts/VulnerableVault.sol
+node packages/cli/dist/cli.js scan examples/contracts/SecureVault.sol
+```
 
 ---
 
-## Development
+## Data Model
 
-### Prerequisites
+### `Finding`
 
-- Node.js ≥ 18
-- Python ≥ 3.10 (for Slither)
-- `pip install slither-analyzer` (optional but recommended)
+Each detected issue is a `Finding` object:
 
-### Setup
-
-```bash
-git clone https://github.com/your-org/chainproof
-cd chainproof
-npm install            # installs all workspaces
-npm run build          # builds all packages
+```typescript
+interface Finding {
+  id: string;           // e.g. "CP-107"
+  title: string;
+  description: string;
+  recommendation: string;
+  severity: "critical" | "high" | "medium" | "low" | "info" | "gas";
+  file: string;
+  line: number;
+  lineEnd?: number;
+  snippet?: string;
+  swcId?: string;       // e.g. "SWC-107"
+  llmEnhanced?: boolean;
+}
 ```
 
-### Test against example contracts
+### `ScanResult`
 
-```bash
-# After building
-node packages/cli/dist/cli.js scan examples/contracts/VulnerableVault.sol
-
-# Expected: critical + high findings
-# Then try the secure version:
-node packages/cli/dist/cli.js scan examples/contracts/SecureVault.sol
-# Expected: clean ✅
+```typescript
+interface ScanResult {
+  version: string;
+  timestamp: string;
+  files: FileScanResult[];
+  summary: {
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+    info: number;
+    gas: number;
+    total: number;
+  };
+}
 ```
 
-### Adding a new rule
+### Programmatic usage
 
-1. Create `packages/core/src/rules/swcXXX-your-rule.ts`
-2. Export a `detectXxx(ast, source, filePath): Finding[]` function
-3. Import and call it in `packages/core/src/scanner.ts`
-4. Add an entry to the rules table above
+```typescript
+import { scan, generateMarkdownReport } from "@chainproof/core";
 
-### LLM Enhancement
+const result = await scan({
+  targets: ["contracts/MyToken.sol"],
+  useSlither: true,
+  useLLM: false,
+  minSeverity: "low",
+});
 
-Set your Anthropic API key and pass `--llm`:
+console.log(generateMarkdownReport(result));
+```
+
+---
+
+## Configuration
+
+### Environment variables
+
+| Variable | Used by | Description |
+|----------|---------|-------------|
+| `ANTHROPIC_API_KEY` | CLI, extension, action | Claude API key for LLM enhancement |
+
+### `.chainproofrc.json`
+
+Generated by `chainproof init`:
+
+```json
+{
+  "targets": ["contracts/"],
+  "useSlither": true,
+  "useLLM": true,
+  "minSeverity": "low",
+  "outputFormat": "markdown",
+  "output": "audit-report.md"
+}
+```
+
+### LLM enhancement
+
+When enabled, critical and high findings are sent to Claude (`claude-sonnet-4-20250514`) for:
+
+- A developer-friendly explanation of the risk in context
+- A copy-paste-ready fix for the specific code
+- A brief real-world exploit scenario
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
 chainproof scan contracts/ --llm
 ```
 
-Critical and high findings get enhanced with:
-- Developer-friendly explanation of the exact risk
-- Copy-paste ready fix for the specific code
-- Real-world exploit scenario
+LLM calls are best-effort — if the API fails, the original scanner finding is returned unchanged.
+
+---
+
+## Development Guide
+
+### Build and test
+
+```bash
+npm install
+npm run build
+npm run lint
+npm run test
+```
+
+### Adding a new rule
+
+1. Create `packages/core/src/rules/swcXXX-your-rule.ts`
+2. Export a `detectXxx(ast, source, filePath): Finding[]` function using the AST visitor pattern
+3. Import and call it in `packages/core/src/scanner.ts`
+4. Add an entry to the [Vulnerability Rules](#vulnerability-rules) table
+5. Add or update an example in `examples/contracts/` to exercise the rule
+
+**Rule template:**
+
+```typescript
+import { visit, getSnippet } from "../ast/parser";
+import type { Finding } from "../types";
+import type { ASTNode } from "@solidity-parser/parser";
+
+export function detectMyRule(
+  ast: ASTNode,
+  source: string,
+  filePath: string
+): Finding[] {
+  const findings: Finding[] = [];
+
+  visit(ast, {
+    // Match relevant AST node types
+    FunctionDefinition(node: ASTNode) {
+      // ... detection logic ...
+      findings.push({
+        id: "CP-XXX",
+        swcId: "SWC-XXX",
+        title: "Rule title",
+        description: "Why this is dangerous",
+        recommendation: "How to fix it",
+        severity: "high",
+        file: filePath,
+        line: 0,
+        snippet: getSnippet(source, node),
+      });
+    },
+  });
+
+  return findings;
+}
+```
+
+### Workspace scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run build` | Build all packages |
+| `npm run test` | Run tests in all workspaces |
+| `npm run lint` | ESLint on `packages/*/src/**/*.ts` |
+| `npm run dev:cli` | Watch-build the CLI package |
 
 ---
 
@@ -169,7 +559,7 @@ Critical and high findings get enhanced with:
 
 - [ ] SWC-103: Floating pragma detector
 - [ ] SWC-116: Timestamp dependency
-- [ ] SWC-120: Weak randomness (block.timestamp / blockhash)
+- [ ] SWC-120: Weak randomness (`block.timestamp` / `blockhash`)
 - [ ] Foundry test generation for detected vulnerabilities
 - [ ] Hardhat plugin
 - [ ] SARIF output for GitHub Security tab
@@ -181,8 +571,3 @@ Critical and high findings get enhanced with:
 ## License
 
 MIT © ChainProof Contributors
-
----
-
-> ⚠️ ChainProof is a developer tool, not a substitute for a professional security audit.
-> Always have critical contracts audited by qualified humans before mainnet deployment.
