@@ -46,8 +46,17 @@ program
   .option("--no-llm", "Skip LLM enhancement of findings")
   .option(
     "--api-key <key>",
-    "Anthropic API key (or set ANTHROPIC_API_KEY env var)"
+    "LLM API key (kept for backward compatibility; for Anthropic set ANTHROPIC_API_KEY)"
   )
+  .option(
+    "--llm-provider <provider>",
+    "LLM provider identifier (e.g. anthropic, openai). Defaults to anthropic"
+  )
+  .option(
+    "--llm-model <model>",
+    "LLM model identifier (provider-specific)"
+  )
+
   .option(
     "--min-severity <level>",
     "Minimum severity to report: critical|high|medium|low|info",
@@ -66,15 +75,22 @@ program
         slither: boolean;
         llm: boolean;
         apiKey?: string;
+        llmProvider?: string;
+        llmModel?: string;
         minSeverity: string;
         format: string;
         output?: string;
       }
     ) => {
+
       printBanner();
 
       const apiKey = opts.apiKey ?? process.env.ANTHROPIC_API_KEY;
       const useLLM = opts.llm && !!apiKey;
+
+      const llmProvider = opts.llmProvider ?? "anthropic";
+      const llmModel = opts.llmModel;
+
 
       if (opts.llm && !apiKey) {
         console.warn(

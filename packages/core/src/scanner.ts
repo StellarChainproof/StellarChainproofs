@@ -102,9 +102,10 @@ async function scanFile(
   }
 
   // ── LLM enhancement ────────────────────────────────────────────────────────
-  if (config.useLLM && config.apiKey && findings.length > 0) {
-    findings = await enhanceFindingsWithLLM(findings, source, config.apiKey);
+  if (config.useLLM && findings.length > 0) {
+    findings = await enhanceFindingsWithLLM(findings, source, config);
   }
+
 
   return { file: filePath, findings, gasHints, slitherRan };
 }
