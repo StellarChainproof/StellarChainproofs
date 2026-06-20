@@ -13,6 +13,7 @@ import {
   isSlitherAvailable,
 } from "@chainproof/core";
 import type { ScanConfig } from "@chainproof/core";
+import type { ServerOptions } from "@chainproof/server";
 
 // ─── ASCII Banner ─────────────────────────────────────────────────────────────
 
@@ -261,5 +262,78 @@ program
     console.log(chalk.green("  ✅ Created .chainproofrc.json"));
     console.log(chalk.gray("  Edit it to configure your targets and options."));
   });
+
+// ─── serve command — start the REST API server ───────────────────────────────
+
+program
+  .command("serve")
+  .description("Start the ChainProof REST API server")
+  .option("--port <number>", "Port to listen on", "4243")
+  .option("--host <host>", "Host/IP to bind", "127.0.0.1")
+  .option("--token <token>", "Bearer token for authentication (optional)")
+  .option("--allow-fs", "Allow POST /scan/file to scan server-side file paths")
+  .option(
+    "--max-requests <number>",
+    "Max scan requests per minute (rate limit)",
+    "10"
+  )
+  .option(
+    "--body-limit <size>",
+    "Max request body size (e.g. 5mb)",
+    "5mb"
+  )
+  .action(
+    async (opts: {
+      port: string;
+      host: string;
+      token?: string;
+      allowFs?: boolean;
+      maxRequests: string;
+      bodyLimit: string;
+    }) => {
+      printBanner();
+
+      const port = parseInt(opts.port, 10);
+      if (isNaN(port) || port < 1 || port > 65535) {
+        console.error(chalk.red("  ❌ Invalid port number"));
+        process.exit(1);
+      }
+
+      const maxRequests = parseInt(opts.maxRequests, 10);
+      if (isNaN(maxRequests) || maxRequests < 1) {
+        console.error(chalk.red("  ❌ --max-requests must be a positive integer"));
+        process.exit(1);
+      }
+
+      const serverOpts: ServerOptions = {
+        port,
+        host: opts.host,
+        token: opts.token,
+        allowFs: opts.allowFs ?? false,
+        maxRequests,
+        bodySizeLimit: opts.bodyLimit,
+      };
+
+      if (opts.token) {
+        console.log(chalk.green("  🔐 Bearer token auth enabled"));
+      } else {
+        console.log(
+          chalk.yellow(
+            "  ⚠️  No bearer token set — server is open. " +
+            "Use --token <secret> for non-localhost bindings."
+          )
+        );
+      }
+
+      try {
+        // Dynamically import to avoid loading Express unless `serve` is used
+        const { startServer } = await import("@chainproof/server");
+        await startServer(serverOpts);
+      } catch (err) {
+        console.error(chalk.red(`\n  ❌ Failed to start server: ${err}`));
+        process.exit(1);
+      }
+    }
+  );
 
 program.parse();

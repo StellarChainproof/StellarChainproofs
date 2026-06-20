@@ -1,6 +1,6 @@
 import { visit, getSnippet } from "../ast/parser";
 import type { GasHint } from "../types";
-import type { ASTNode } from "@solidity-parser/parser";
+import type { ASTNode } from "@solidity-parser/parser/dist/src/ast-types";
 
 /**
  * Detect gas optimization opportunities in Solidity source.

@@ -1,6 +1,6 @@
 import { visit, getSnippet } from "../ast/parser";
 import type { Finding } from "../types";
-import type { ASTNode } from "@solidity-parser/parser";
+import type { ASTNode } from "@solidity-parser/parser/dist/src/ast-types";
 
 /**
  * SWC-115: Authorization through tx.origin

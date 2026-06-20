@@ -1,5 +1,5 @@
 import * as parser from "@solidity-parser/parser";
-import type { ASTNode } from "@solidity-parser/parser";
+import type { ASTNode, ASTVisitor } from "@solidity-parser/parser/dist/src/ast-types";
 
 export interface ParseResult {
   ast: ASTNode | null;
@@ -35,7 +35,7 @@ export function visit(
   ast: ASTNode,
   visitors: Partial<Record<string, (node: ASTNode) => void>>
 ): void {
-  parser.visit(ast, visitors as parser.ASTVisitor);
+  parser.visit(ast, visitors as ASTVisitor);
 }
 
 /**

@@ -1,0 +1,421 @@
+openapi: "3.1.0"
+
+info:
+  title: ChainProof Server API
+  version: "0.1.0"
+  description: |
+    REST API for the ChainProof smart-contract security scanner.
+    Allows thin clients (Python CI pipelines, browser-based editors,
+    remote IDEs) to offload Solidity scanning to a running ChainProof server
+    instance without requiring a local Node.js toolchain.
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:4243
+    description: Local development server
+  - url: http://{host}:{port}
+    description: Custom deployment
+    variables:
+      host:
+        default: localhost
+      port:
+        default: "4243"
+
+security: []   # Overridden per-operation when token auth is enabled
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: >
+        Optional. Enable on the server with `chainproof serve --token <secret>`.
+        When enabled, include `Authorization: Bearer <token>` on all non-health requests.
+
+  schemas:
+    # ── Severity ──────────────────────────────────────────────────────────────
+    Severity:
+      type: string
+      enum: [critical, high, medium, low, info, gas]
+      description: Severity level of a finding.
+
+    # ── Finding ───────────────────────────────────────────────────────────────
+    Finding:
+      type: object
+      required: [id, title, description, recommendation, severity, file, line]
+      properties:
+        id:
+          type: string
+          example: CP-107
+        swcId:
+          type: string
+          example: SWC-107
+        title:
+          type: string
+          example: Reentrancy vulnerability
+        description:
+          type: string
+        recommendation:
+          type: string
+        severity:
+          $ref: "#/components/schemas/Severity"
+        file:
+          type: string
+          example: contracts/Vault.sol
+        line:
+          type: integer
+          example: 42
+        lineEnd:
+          type: integer
+        snippet:
+          type: string
+        llmEnhanced:
+          type: boolean
+
+    # ── GasHint ───────────────────────────────────────────────────────────────
+    GasHint:
+      type: object
+      required: [file, line, description, estimatedSaving]
+      properties:
+        file:
+          type: string
+        line:
+          type: integer
+        description:
+          type: string
+        estimatedSaving:
+          type: string
+          example: "~2000 gas per iteration"
+        snippet:
+          type: string
+
+    # ── FileScanResult ────────────────────────────────────────────────────────
+    FileScanResult:
+      type: object
+      required: [file, findings, gasHints, slitherRan]
+      properties:
+        file:
+          type: string
+        findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/Finding"
+        gasHints:
+          type: array
+          items:
+            $ref: "#/components/schemas/GasHint"
+        slitherRan:
+          type: boolean
+        parseError:
+          type: string
+
+    # ── ScanResult ────────────────────────────────────────────────────────────
+    ScanResult:
+      type: object
+      required: [version, timestamp, files, summary]
+      properties:
+        version:
+          type: string
+          example: "0.1.0"
+        timestamp:
+          type: string
+          format: date-time
+        files:
+          type: array
+          items:
+            $ref: "#/components/schemas/FileScanResult"
+        summary:
+          type: object
+          required: [critical, high, medium, low, info, gas, total]
+          properties:
+            critical:
+              type: integer
+            high:
+              type: integer
+            medium:
+              type: integer
+            low:
+              type: integer
+            info:
+              type: integer
+            gas:
+              type: integer
+            total:
+              type: integer
+
+    # ── ScanConfig (request subset) ───────────────────────────────────────────
+    ScanConfig:
+      type: object
+      properties:
+        useLLM:
+          type: boolean
+          default: false
+          description: Send findings to an LLM for enhanced explanations.
+        useSlither:
+          type: boolean
+          default: false
+          description: Run Slither static analyser (must be installed on server).
+        minSeverity:
+          $ref: "#/components/schemas/Severity"
+          default: low
+        apiKey:
+          type: string
+          description: LLM provider API key (overrides server env var).
+        llmProvider:
+          type: string
+          example: anthropic
+        llmModel:
+          type: string
+          example: claude-3-5-sonnet-20241022
+
+    # ── RuleMeta ──────────────────────────────────────────────────────────────
+    RuleMeta:
+      type: object
+      required: [id, title, severity, category, description]
+      properties:
+        id:
+          type: string
+          example: CP-107
+        swcId:
+          type: string
+        title:
+          type: string
+        severity:
+          $ref: "#/components/schemas/Severity"
+        category:
+          type: string
+          enum: [security, gas, best-practice]
+        description:
+          type: string
+
+    # ── Error ─────────────────────────────────────────────────────────────────
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+paths:
+  # ── GET /health ─────────────────────────────────────────────────────────────
+  /health:
+    get:
+      operationId: getHealth
+      summary: Liveness check
+      description: Returns server status, version, and Slither availability. Always public (no auth required).
+      tags: [System]
+      responses:
+        "200":
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, version, slitherAvailable]
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  version:
+                    type: string
+                    example: "0.1.0"
+                  slitherAvailable:
+                    type: boolean
+
+  # ── GET /rules ──────────────────────────────────────────────────────────────
+  /rules:
+    get:
+      operationId: getRules
+      summary: List all registered rules
+      description: Returns metadata for every built-in vulnerability and gas rule.
+      tags: [Rules]
+      security:
+        - bearerAuth: []
+        - {}
+      responses:
+        "200":
+          description: Rule list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [rules, total]
+                properties:
+                  rules:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RuleMeta"
+                  total:
+                    type: integer
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ── POST /scan ──────────────────────────────────────────────────────────────
+  /scan:
+    post:
+      operationId: scanInlineFiles
+      summary: Scan Solidity source code
+      description: |
+        Accepts one or more Solidity files as inline content and returns a full ScanResult.
+        Default request body size limit is 5 MB (configurable with `--body-limit`).
+        Rate limited to 10 requests/minute by default (configurable with `--max-requests`).
+      tags: [Scan]
+      security:
+        - bearerAuth: []
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [path, content]
+                    properties:
+                      path:
+                        type: string
+                        description: Logical file path (used in reports, not for FS access).
+                        example: contracts/Vault.sol
+                      content:
+                        type: string
+                        description: Full Solidity source code.
+                config:
+                  $ref: "#/components/schemas/ScanConfig"
+            example:
+              files:
+                - path: contracts/Vault.sol
+                  content: |
+                    pragma solidity ^0.7.0;
+                    contract Vault {
+                      mapping(address => uint) balances;
+                      function withdraw(uint amount) external {
+                        (bool ok,) = msg.sender.call{value: amount}("");
+                        require(ok);
+                        balances[msg.sender] -= amount;
+                      }
+                    }
+              config:
+                useLLM: false
+                minSeverity: medium
+      responses:
+        "200":
+          description: Scan completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanResult"
+        "400":
+          description: Bad request (missing or invalid fields)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Scan error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ── POST /scan/file ─────────────────────────────────────────────────────────
+  /scan/file:
+    post:
+      operationId: scanFilePath
+      summary: Scan a server-side file path
+      description: |
+        Scans a file or directory accessible on the server filesystem.
+        **Only available when the server is started with `--allow-fs`.**
+        Requires explicit opt-in because it grants the client read access
+        to the server's filesystem.
+      tags: [Scan]
+      security:
+        - bearerAuth: []
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path]
+              properties:
+                path:
+                  type: string
+                  description: Absolute or relative path on the server filesystem.
+                  example: /workspace/contracts
+                config:
+                  $ref: "#/components/schemas/ScanConfig"
+      responses:
+        "200":
+          description: Scan completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanResult"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Filesystem access not enabled (`--allow-fs` flag not set)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: File not found on server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Scan error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+tags:
+  - name: System
+    description: Health and liveness endpoints
+  - name: Scan
+    description: Smart contract scanning endpoints
+  - name: Rules
+    description: Rule metadata endpoints
