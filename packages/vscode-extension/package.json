@@ -31,11 +31,32 @@
       {
         "command": "chainproof.clearDiagnostics",
         "title": "ChainProof: Clear Diagnostics"
+      },
+      {
+        "command": "chainproof.viewFunctionFindings",
+        "title": "ChainProof: View Function Findings"
+      },
+      {
+        "command": "chainproof.applyQuickFix",
+        "title": "ChainProof: Apply Quick Fix"
+      },
+      {
+        "command": "chainproof.suppressFinding",
+        "title": "ChainProof: Suppress Finding"
+      },
+      {
+        "command": "chainproof.explainVulnerability",
+        "title": "ChainProof: Explain Vulnerability with AI"
       }
     ],
     "configuration": {
       "title": "ChainProof",
       "properties": {
+        "chainproof.enableCodeLens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable inline security findings and quick fixes via CodeLens"
+        },
         "chainproof.enableOnSave": {
           "type": "boolean",
           "default": true,
