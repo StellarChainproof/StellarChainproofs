@@ -160,6 +160,7 @@ async function scanFileLegacy(
     findings = await enhanceFindingsWithLLM(findings, source, config.apiKey);
   }
 
+
   return { file: filePath, findings, gasHints, slitherRan };
 }
 
