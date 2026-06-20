@@ -75,10 +75,26 @@ export interface ScanConfig {
   useSlither: boolean;
   /** Send findings to LLM for explanation */
   useLLM: boolean;
-  /** Anthropic API key */
+
+  /**
+   * Provider API key.
+   *
+   * Backward compatible with prior Anthropic-only implementation.
+   */
   apiKey?: string;
+
+  /**
+   * Select LLM provider (e.g. "anthropic", "openai"). Defaults to "anthropic".
+   */
+  llmProvider?: string;
+  /** Provider/model identifier (provider-specific). */
+  llmModel?: string;
+  /** Provider API key (alternative to apiKey). */
+  llmApiKey?: string;
+
   /** Minimum severity to report */
   minSeverity?: Severity;
   /** Output format */
   outputFormat?: "json" | "markdown" | "table";
 }
+
