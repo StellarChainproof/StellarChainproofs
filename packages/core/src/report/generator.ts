@@ -1,4 +1,5 @@
-import type { ScanResult, Finding, GasHint, Severity } from "../types";
+import type { ScanResult, Finding, GasHint, Severity, ContractMetrics } from "../types";
+import chalk from "chalk";
 
 const SEVERITY_EMOJI: Record<Severity, string> = {
   critical: "🔴",
@@ -51,6 +52,79 @@ export function generateMarkdownReport(result: ScanResult): string {
       "Do not deploy to mainnet without addressing these issues.**"
     );
     lines.push("");
+  }
+
+  // ── Risk Score Header ──────────────────────────────────────────────────────
+  if (result.metrics && result.metrics.length > 0) {
+    const topRisk = result.metrics
+      .slice()
+      .sort((a, b) => b.riskScore - a.riskScore)[0];
+    lines.push(`> 📊 **Top Risk Contract:** \`${topRisk.contract}\` — Risk Score: **${topRisk.riskScore}/100**`);
+    lines.push("");
+  }
+
+  // ── Complexity Metrics Section ─────────────────────────────────────────────
+  if (result.metrics && result.metrics.length > 0) {
+    lines.push("## Complexity Metrics");
+    lines.push("");
+    lines.push(
+      "The following metrics assess code complexity and maintainability. " +
+      "High-complexity contracts are harder to audit and carry elevated risk."
+    );
+    lines.push("");
+    lines.push(
+      "_Composite risk score formula: weighted sum of normalized metrics " +
+      "(LOC: 25%, Inheritance Depth: 15%, Cyclomatic Complexity: 25%, " +
+      "Public/External Ratio: 15%, State Variables: 10%, External Calls: 10%)._"
+    );
+    lines.push("");
+
+    lines.push("| Contract | File | LOC | Functions | Inheritance Depth | Avg CC | High CC Functions | Risk Score |");
+    lines.push("|----------|------|-----|-----------|-------------------|--------|-------------------|------------|");
+
+    for (const m of result.metrics) {
+      const highCCList = m.highComplexityFunctions
+        .map((f) => `${f.name}(${f.cc})`)
+        .join(", ") || "—";
+      const riskColor = m.riskScore >= 70 ? "🔴" : m.riskScore >= 40 ? "🟡" : "🟢";
+      lines.push(
+        `| ${m.contract} | ${m.file} | ${m.linesOfCode} | ${m.functionCount} | ${m.inheritanceDepth} | ${m.avgCyclomaticComplexity} | ${highCCList} | ${riskColor} ${m.riskScore}/100 |`
+      );
+    }
+    lines.push("");
+
+    // High complexity function details
+    const allHighCC = result.metrics.flatMap((m) =>
+      m.highComplexityFunctions.map((f) => ({ ...f, contract: m.contract, file: m.file }))
+    );
+    if (allHighCC.length > 0) {
+      lines.push("### ⚠️ High-Complexity Functions (CC > 10)");
+      lines.push("");
+      for (const f of allHighCC) {
+        lines.push(`- **${f.contract}::${f.name}** — CC: ${f.cc} (\`${f.file}\`) — _Consider refactoring_`);
+      }
+      lines.push("");
+    }
+
+    // Top 3 highest risk contracts
+    const top3 = result.metrics
+      .slice()
+      .sort((a, b) => b.riskScore - a.riskScore)
+      .slice(0, 3);
+    if (top3.length > 0) {
+      lines.push("### 🔥 Top 3 Highest-Risk Contracts");
+      lines.push("");
+      for (let i = 0; i < top3.length; i++) {
+        const m = top3[i];
+        const badge = i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉";
+        lines.push(
+          `${badge} **${m.contract}** — Risk Score: **${m.riskScore}/100** ` +
+          `(\`${m.file}\`, ${m.linesOfCode} LOC, ${m.functionCount} functions, ` +
+          `inheritance depth: ${m.inheritanceDepth})`
+        );
+      }
+      lines.push("");
+    }
   }
 
   // Findings per file
@@ -172,6 +246,27 @@ export function generateTableReport(result: ScanResult): string {
   lines.push(`  ${SEVERITY_EMOJI.gas} Gas      : ${summary.gas}`);
   lines.push(`  ─────────────────────────────────────────`);
   lines.push(`  Total    : ${summary.total}\n`);
+
+  // ── Contract Risk Table ────────────────────────────────────────────────────
+  if (result.metrics && result.metrics.length > 0) {
+    lines.push("  CONTRACT RISK METRICS");
+    lines.push("  ─────────────────────────────────────────────────────────────────");
+    lines.push(
+      `  ${"Contract".padEnd(24)} ${"LOC".padStart(5)} ${"Functions".padStart(9)} ${"Inh.Depth".padStart(10)} ${"Avg CC".padStart(7)} ${"Risk".padStart(10)}`
+    );
+    for (const m of result.metrics) {
+      const riskColor =
+        m.riskScore >= 70
+          ? chalk.red(`${m.riskScore}/100`)
+          : m.riskScore >= 40
+            ? chalk.yellow(`${m.riskScore}/100`)
+            : chalk.green(`${m.riskScore}/100`);
+      lines.push(
+        `  ${m.contract.padEnd(24)} ${String(m.linesOfCode).padStart(5)} ${String(m.functionCount).padStart(9)} ${String(m.inheritanceDepth).padStart(10)} ${String(m.avgCyclomaticComplexity).padStart(7)} ${riskColor.padStart(10)}`
+      );
+    }
+    lines.push("");
+  }
 
   for (const file of result.files) {
     if (file.findings.length === 0 && file.gasHints.length === 0) continue;

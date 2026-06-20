@@ -1,6 +1,6 @@
 import { visit, getSnippet } from "../ast/parser";
 import type { Finding } from "../types";
-import type { ASTNode } from "@solidity-parser/parser";
+import type { ASTNode } from "../ast/parser";
 
 /**
  * SWC-101: Integer Overflow and Underflow

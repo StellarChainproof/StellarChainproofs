@@ -7,12 +7,14 @@ import { detectTxOrigin } from "./rules/swc115-tx-origin";
 import { detectIntegerOverflow, detectUncheckedReturn } from "./rules/swc101-overflow";
 import { detectGasIssues } from "./rules/gas-optimizer";
 import { enhanceFindingsWithLLM } from "./llm/enhancer";
+import { analyzeContract } from "./metrics/complexity";
 import type {
   ScanConfig,
   ScanResult,
   FileScanResult,
   Finding,
   Severity,
+  ContractMetrics,
 } from "./types";
 
 const VERSION = "0.1.0";
@@ -109,12 +111,118 @@ async function scanFile(
   return { file: filePath, findings, gasHints, slitherRan };
 }
 
+/**
+ * Extract high-complexity functions as info-severity findings.
+ */
+function generateComplexityFindings(
+  metrics: ContractMetrics[],
+  source: string,
+  filePath: string
+): Finding[] {
+  const findings: Finding[] = [];
+
+  for (const m of metrics) {
+    for (const fn of m.highComplexityFunctions) {
+      // Find approximate line in source for the function name
+      const lines = source.split("\n");
+      let line = 0;
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].includes(`function ${fn.name}`) || 
+            lines[i].includes(`function ${fn.name}(`)) {
+          line = i + 1;
+          break;
+        }
+      }
+
+      findings.push({
+        id: "CP-METRICS-CC",
+        title: `High cyclomatic complexity in ${fn.name}`,
+        description:
+          `Function "${fn.name}" has a cyclomatic complexity of ${fn.cc} (>10). ` +
+          `High complexity makes code harder to audit and more prone to hidden vulnerabilities. ` +
+          `Consider breaking this function into smaller, focused sub-functions.`,
+        recommendation:
+          `Refactor "${fn.name}" to reduce cyclomatic complexity below 10. ` +
+          `Extract nested conditionals into named helper functions with clear contracts.`,
+        severity: "info",
+        file: filePath,
+        line,
+      });
+    }
+  }
+
+  return findings;
+}
+
+/**
+ * Generate ContractMetrics for a file's parsed AST.
+ */
+function computeMetricsForFile(
+  filePath: string
+): ContractMetrics[] {
+  const source = fs.readFileSync(filePath, "utf-8");
+  const { ast } = parseSolidity(source, filePath);
+  if (!ast) return [];
+
+  const analysisResults = analyzeContract(ast, source, filePath);
+
+  return analysisResults.map((ar) => ({
+    contract: ar.contractName,
+    file: ar.filePath,
+    linesOfCode: ar.linesOfCode,
+    functionCount: ar.totalFunctions,
+    inheritanceDepth: ar.inheritanceDepth,
+    avgCyclomaticComplexity:
+      ar.functionMetrics.length > 0
+        ? Math.round(
+            (ar.functionMetrics.reduce((sum, fm) => sum + fm.cyclomaticComplexity, 0) /
+              ar.functionMetrics.length) * 100
+          ) / 100
+        : 0,
+    highComplexityFunctions: ar.highComplexityFunctions,
+    externalCallsPerFunction: ar.externalCallsPerFunction,
+    stateVariableCount: ar.stateVariableCount,
+    visibilityDistribution: ar.visibilityDistribution,
+    riskScore: ar.riskScore,
+  }));
+}
+
 export async function scan(config: ScanConfig): Promise<ScanResult> {
   const files = collectSolFiles(config.targets);
 
   const fileResults = await Promise.all(
     files.map((f) => scanFile(f, config))
   );
+
+  // ── Compute complexity metrics ─────────────────────────────────────────────
+  let allMetrics: ContractMetrics[] = [];
+  const complexityFindings: Finding[] = [];
+
+  if (config.useMetrics) {
+    for (const filePath of files) {
+      const metrics = computeMetricsForFile(filePath);
+      allMetrics.push(...metrics);
+
+      // Generate info-severity findings for high complexity functions
+      if (metrics.length > 0) {
+        try {
+          const source = fs.readFileSync(filePath, "utf-8");
+          const cFindings = generateComplexityFindings(metrics, source, filePath);
+          complexityFindings.push(...cFindings);
+        } catch {
+          // Skip if file can't be read
+        }
+      }
+    }
+  }
+
+  // Inject complexity findings into the first file that has no parse error
+  if (complexityFindings.length > 0 && fileResults.length > 0) {
+    const targetFile = fileResults.find((f) => !f.parseError);
+    if (targetFile) {
+      targetFile.findings.push(...complexityFindings);
+    }
+  }
 
   const summary = {
     critical: 0,
@@ -140,5 +248,6 @@ export async function scan(config: ScanConfig): Promise<ScanResult> {
     timestamp: new Date().toISOString(),
     files: fileResults,
     summary,
+    metrics: allMetrics.length > 0 ? allMetrics : undefined,
   };
 }

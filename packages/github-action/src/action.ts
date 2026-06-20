@@ -8,7 +8,7 @@ import {
   generateJSONReport,
   isSlitherAvailable,
 } from "@chainproof/core";
-import type { ScanConfig, ScanResult } from "@chainproof/core";
+import type { ScanConfig, ScanResult, ContractMetrics } from "@chainproof/core";
 
 // ─── Build PR comment ─────────────────────────────────────────────────────────
 
@@ -38,6 +38,7 @@ function buildPRComment(result: ScanResult): string {
   if (summary.high)     lines.push(`| 🟠 High     | ${summary.high} |`);
   if (summary.medium)   lines.push(`| 🟡 Medium   | ${summary.medium} |`);
   if (summary.low)      lines.push(`| 🟢 Low      | ${summary.low} |`);
+  if (summary.info)     lines.push(`| 🔵 Info     | ${summary.info} |`);
   if (summary.gas)      lines.push(`| ⛽ Gas      | ${summary.gas} |`);
   lines.push("");
 
@@ -46,6 +47,39 @@ function buildPRComment(result: ScanResult): string {
       "> 🛑 **Critical or high severity issues found. This PR should not be merged until resolved.**"
     );
     lines.push("");
+  }
+
+  // ── Top 3 highest-risk contracts (from metrics) ────────────────────────
+  if (result.metrics && result.metrics.length > 0) {
+    const top3 = result.metrics
+      .slice()
+      .sort((a, b) => b.riskScore - a.riskScore)
+      .slice(0, 3);
+
+    lines.push("### 🔥 Top 3 Highest-Risk Contracts");
+    lines.push("");
+    lines.push("| Rank | Contract | File | Risk Score | LOC | Avg CC | Inheritance Depth |");
+    lines.push("|------|----------|------|------------|-----|--------|-------------------|");
+
+    top3.forEach((m, i) => {
+      const badge = i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉";
+      lines.push(
+        `| ${badge} ${i + 1} | ${m.contract} | ${m.file} | ${m.riskScore}/100 | ${m.linesOfCode} | ${m.avgCyclomaticComplexity} | ${m.inheritanceDepth} |`
+      );
+    });
+    lines.push("");
+
+    const highCC = result.metrics.flatMap((m) =>
+      m.highComplexityFunctions.map((f) => ({ ...f, contract: m.contract }))
+    );
+    if (highCC.length > 0) {
+      lines.push("### ⚠️ High-Complexity Functions (CC > 10)");
+      lines.push("");
+      for (const f of highCC) {
+        lines.push(`- **${f.contract}::${f.name}** — CC: ${f.cc} — _Consider refactoring_`);
+      }
+      lines.push("");
+    }
   }
 
   // Show top 5 findings inline
@@ -85,6 +119,7 @@ async function run() {
 
     const minSeverity = core.getInput("min-severity") as ScanConfig["minSeverity"];
     const useSlither = core.getInput("use-slither") === "true";
+    const useMetrics = core.getInput("use-metrics") !== "false";
     const apiKey = core.getInput("api-key") || process.env.ANTHROPIC_API_KEY;
     const uploadReport = core.getInput("upload-report") === "true";
     const failOnGas = core.getInput("fail-on-gas") === "true";
@@ -93,11 +128,13 @@ async function run() {
     core.info(`[ChainProof] Min severity: ${minSeverity}`);
     core.info(`[ChainProof] Slither: ${useSlither && isSlitherAvailable() ? "enabled" : "disabled"}`);
     core.info(`[ChainProof] LLM: ${apiKey ? "enabled" : "disabled"}`);
+    core.info(`[ChainProof] Metrics: ${useMetrics ? "enabled" : "disabled"}`);
 
     const config: ScanConfig = {
       targets,
       useSlither: useSlither && isSlitherAvailable(),
       useLLM: !!apiKey,
+      useMetrics,
       apiKey,
       minSeverity,
     };
@@ -193,9 +230,7 @@ async function run() {
       core.setFailed(
         `[ChainProof] ${blockingFindings.length} ${minSeverity}+ severity findings detected. ` +
         "Resolve before merging."
-      );
-      return;
-    }
+      );    }
 
     if (failOnGas && summary.gas > 0) {
       core.setFailed(`[ChainProof] ${summary.gas} gas optimization hints found.`);

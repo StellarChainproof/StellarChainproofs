@@ -48,6 +48,27 @@ export interface FileScanResult {
   parseError?: string;
 }
 
+// ─── Complexity / Maintainability Metrics ──────────────────────────────────────
+
+export interface HighComplexityFunction {
+  name: string;
+  cc: number;
+}
+
+export interface ContractMetrics {
+  contract: string;
+  file: string;
+  linesOfCode: number;
+  functionCount: number;
+  inheritanceDepth: number;
+  avgCyclomaticComplexity: number;
+  highComplexityFunctions: Array<{ name: string; cc: number }>;
+  externalCallsPerFunction: Record<string, number>;
+  stateVariableCount: number;
+  visibilityDistribution: Record<string, number>;
+  riskScore: number; // 0-100 composite
+}
+
 // ─── Full scan result for a project ──────────────────────────────────────────
 
 export interface ScanResult {
@@ -64,6 +85,8 @@ export interface ScanResult {
     gas: number;
     total: number;
   };
+  /** Complexity and maintainability metrics per contract */
+  metrics?: ContractMetrics[];
 }
 
 // ─── Scanner config ───────────────────────────────────────────────────────────
@@ -75,6 +98,8 @@ export interface ScanConfig {
   useSlither: boolean;
   /** Send findings to LLM for explanation */
   useLLM: boolean;
+  /** Compute complexity metrics */
+  useMetrics: boolean;
   /** Anthropic API key */
   apiKey?: string;
   /** Minimum severity to report */
