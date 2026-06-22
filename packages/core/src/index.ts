@@ -1,7 +1,12 @@
 export { scan } from "./scanner";
-export { generateMarkdownReport, generateJSONReport, generateTableReport } from "./report/generator";
+export {
+  generateMarkdownReport,
+  generateJSONReport,
+  generateTableReport,
+} from "./report/generator";
 export { isSlitherAvailable } from "./ast/slither";
-export { analyzeContract, computeFunctionComplexity, computeLinesOfCode, computeInheritanceDepth } from "./metrics/complexity";
+export { loadPlugin, loadPlugins } from "./plugins";
+export { loadConfigFile, mergePluginsFromConfig } from "./config";
 export type {
   ScanConfig,
   ScanResult,
@@ -9,8 +14,9 @@ export type {
   Finding,
   GasHint,
   Severity,
-  ContractMetrics,
-  HighComplexityFunction,
+  ChainProofPlugin,
+  PluginRule,
+  ASTNode,
 } from "./types";
 export type {
   ImportGraph,

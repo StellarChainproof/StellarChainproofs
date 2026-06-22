@@ -1,6 +1,5 @@
 import { visit, getSnippet } from "../ast/parser";
-import type { Finding } from "../types";
-import type { ASTNode } from "../ast/parser";
+import type { Finding, ASTNode } from "../types";
 
 /**
  * SWC-107: Reentrancy
@@ -12,7 +11,6 @@ export function detectReentrancy(
   ast: ASTNode,
   source: string,
   filePath: string,
-  options?: RuleOptions
 ): Finding[] {
   const findings: Finding[] = [];
   const members = options?.contractView?.members.filter((m) => m.kind === "function") ?? [];
@@ -43,9 +41,22 @@ export function detectReentrancy(
         stmtStr.includes('"send"') ||
         stmtStr.includes('"value"');
 
-      if (isExternalCall && externalCallIdx === -1) {
-        externalCallIdx = i;
-      }
+        // Detect state variable write after an external call
+        if (
+          externalCallIdx !== -1 &&
+          i > externalCallIdx &&
+          (stmt as { type?: string }).type === "ExpressionStatement"
+        ) {
+          const exprStr = JSON.stringify(stmt);
+          // Heuristic: assignment after call with no msg.sender guard
+          if (
+            exprStr.includes('"operator":"="') ||
+            exprStr.includes('"operator":"-="')
+          ) {
+            stateWriteAfterCall = true;
+          }
+        }
+      });
 
       if (
         externalCallIdx !== -1 &&

@@ -1,6 +1,5 @@
 import { visit, getSnippet } from "../ast/parser";
-import type { GasHint } from "../types";
-import type { ASTNode } from "../ast/parser";
+import type { GasHint, ASTNode } from "../types";
 
 /**
  * Detect gas optimization opportunities in Solidity source.
@@ -8,7 +7,7 @@ import type { ASTNode } from "../ast/parser";
 export function detectGasIssues(
   ast: ASTNode,
   source: string,
-  filePath: string
+  filePath: string,
 ): GasHint[] {
   const hints: GasHint[] = [];
 
@@ -22,10 +21,7 @@ export function detectGasIssues(
       const bodyStr = JSON.stringify(forNode.body);
 
       // Heuristic: storage-like names (e.g. `balances[`, `owner`) accessed in loop
-      if (
-        bodyStr.includes("IndexAccess") ||
-        bodyStr.includes("MemberAccess")
-      ) {
+      if (bodyStr.includes("IndexAccess") || bodyStr.includes("MemberAccess")) {
         hints.push({
           file: filePath,
           line: forNode.loc?.start?.line ?? 0,

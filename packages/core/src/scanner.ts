@@ -9,11 +9,13 @@ import {
 import { runSlither, isSlitherAvailable } from "./ast/slither";
 import { detectReentrancy } from "./rules/swc107-reentrancy";
 import { detectTxOrigin } from "./rules/swc115-tx-origin";
-import { detectUnprotectedUpgrade } from "./rules/swc116-unprotected-upgrade";
-import { detectIntegerOverflow, detectUncheckedReturn } from "./rules/swc101-overflow";
+import {
+  detectIntegerOverflow,
+  detectUncheckedReturn,
+} from "./rules/swc101-overflow";
 import { detectGasIssues } from "./rules/gas-optimizer";
 import { enhanceFindingsWithLLM } from "./llm/enhancer";
-import { analyzeContract } from "./metrics/complexity";
+import { loadPlugins } from "./plugins";
 import type {
   ScanConfig,
   ScanResult,
@@ -40,7 +42,9 @@ function collectSolFiles(targets: string[]): string[] {
     if (!fs.existsSync(target)) continue;
     const stat = fs.statSync(target);
     if (stat.isDirectory()) {
-      const entries = fs.readdirSync(target, { recursive: true } as { recursive: boolean }) as string[];
+      const entries = fs.readdirSync(target, { recursive: true } as {
+        recursive: boolean;
+      }) as string[];
       entries
         .filter((e) => e.endsWith(".sol"))
         .forEach((e) => files.push(path.join(target, e)));
@@ -112,7 +116,7 @@ function runRulesOnFile(
 
 async function scanFileLegacy(
   filePath: string,
-  config: ScanConfig
+  config: ScanConfig,
 ): Promise<FileScanResult> {
   let source: string;
   try {
@@ -139,7 +143,31 @@ async function scanFileLegacy(
     };
   }
 
-  let findings = runRulesOnFile(ast, source, filePath);
+  // ── AST-based rules ────────────────────────────────────────────────────────
+  let findings: Finding[] = [
+    ...detectReentrancy(ast, source, filePath),
+    ...detectTxOrigin(ast, source, filePath),
+    ...detectIntegerOverflow(ast, source, filePath),
+    ...detectUncheckedReturn(ast, source, filePath),
+  ];
+
+  // ── Plugin rules ───────────────────────────────────────────────────────────
+  if (config.plugins) {
+    for (const plugin of config.plugins) {
+      for (const rule of plugin.rules) {
+        try {
+          findings.push(...rule.detect(ast, source, filePath));
+        } catch (error) {
+          console.warn(
+            `[ChainProof] Plugin "${plugin.name}" rule "${rule.id}" failed: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
+      }
+    }
+  }
+
   const gasHints = detectGasIssues(ast, source, filePath);
 
   const slitherRan = config.useSlither && isSlitherAvailable();
@@ -246,55 +274,7 @@ export async function scan(config: ScanConfig): Promise<ScanResult> {
   const initialFiles = collectSolFiles(config.targets);
   const files = initialFiles.length > 0 ? expandWithImports(initialFiles) : initialFiles;
 
-  let fileResults: FileScanResult[];
-
-  if (files.length === 0) {
-    fileResults = [];
-  } else if (files.length === 1) {
-    const graph = buildImportGraph(files);
-    if (hasImportDirectives(graph)) {
-      fileResults = await scanWithImportGraph(files, config);
-    } else {
-      fileResults = [await scanFileLegacy(files[0], config)];
-    }
-  } else {
-    const graph = buildImportGraph(files);
-    if (hasImportDirectives(graph)) {
-      fileResults = await scanWithImportGraph(files, config);
-    } else {
-      fileResults = await Promise.all(files.map((f) => scanFileLegacy(f, config)));
-    }
-  }
-
-  // ── Compute complexity metrics ─────────────────────────────────────────────
-  let allMetrics: ContractMetrics[] = [];
-  const complexityFindings: Finding[] = [];
-
-  if (config.useMetrics) {
-    for (const filePath of files) {
-      const metrics = computeMetricsForFile(filePath);
-      allMetrics.push(...metrics);
-
-      // Generate info-severity findings for high complexity functions
-      if (metrics.length > 0) {
-        try {
-          const source = fs.readFileSync(filePath, "utf-8");
-          const cFindings = generateComplexityFindings(metrics, source, filePath);
-          complexityFindings.push(...cFindings);
-        } catch {
-          // Skip if file can't be read
-        }
-      }
-    }
-  }
-
-  // Inject complexity findings into the first file that has no parse error
-  if (complexityFindings.length > 0 && fileResults.length > 0) {
-    const targetFile = fileResults.find((f) => !f.parseError);
-    if (targetFile) {
-      targetFile.findings.push(...complexityFindings);
-    }
-  }
+  const fileResults = await Promise.all(files.map((f) => scanFile(f, config)));
 
   const summary = {
     critical: 0,

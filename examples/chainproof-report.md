@@ -1,6 +1,6 @@
 # ChainProof Security Audit Report
 
-**Generated:** 2026-06-22T03:34:14.126Z
+**Generated:** 2026-06-22T03:35:01.464Z
 **ChainProof version:** 0.1.0
 **Files scanned:** 1
 
@@ -18,7 +18,7 @@
 
 > ⚠️ **This contract has critical or high severity findings. Do not deploy to mainnet without addressing these issues.**
 
-## examples/contracts/VulnerableVault.sol
+## contracts/VulnerableVault.sol
 
 _Scanned with ChainProof AST engine (Slither not available)_
 

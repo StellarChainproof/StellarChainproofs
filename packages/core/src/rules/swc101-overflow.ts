@@ -1,6 +1,5 @@
 import { visit, getSnippet } from "../ast/parser";
-import type { Finding } from "../types";
-import type { ASTNode } from "../ast/parser";
+import type { Finding, ASTNode } from "../types";
 
 /**
  * SWC-101: Integer Overflow and Underflow
@@ -11,7 +10,7 @@ import type { ASTNode } from "../ast/parser";
 export function detectIntegerOverflow(
   ast: ASTNode,
   source: string,
-  filePath: string
+  filePath: string,
 ): Finding[] {
   const findings: Finding[] = [];
   let pragmaVersion = "";
@@ -82,7 +81,7 @@ export function detectIntegerOverflow(
 export function detectUncheckedReturn(
   ast: ASTNode,
   source: string,
-  filePath: string
+  filePath: string,
 ): Finding[] {
   const findings: Finding[] = [];
 
@@ -92,18 +91,20 @@ export function detectUncheckedReturn(
         expression?: ASTNode;
         loc?: { start?: { line?: number } };
       };
-      const expr = exprNode.expression as {
-        type?: string;
-        memberName?: string;
-        loc?: { start?: { line?: number } };
-      } | undefined;
+      const expr = exprNode.expression as
+        | {
+            type?: string;
+            memberName?: string;
+            loc?: { start?: { line?: number } };
+          }
+        | undefined;
 
       // A bare .call() / .send() not assigned to anything
       if (
-        expr?.type === "FunctionCall" &&
-        JSON.stringify(expr).includes('"memberName":"call"') ||
-        expr?.type === "FunctionCall" &&
-        JSON.stringify(expr).includes('"memberName":"send"')
+        (expr?.type === "FunctionCall" &&
+          JSON.stringify(expr).includes('"memberName":"call"')) ||
+        (expr?.type === "FunctionCall" &&
+          JSON.stringify(expr).includes('"memberName":"send"'))
       ) {
         const line = exprNode.loc?.start?.line ?? 0;
         findings.push({
@@ -115,8 +116,8 @@ export function detectUncheckedReturn(
             "Ignoring this return value means failures are silently swallowed, " +
             "potentially leaving the contract in an inconsistent state.",
           recommendation:
-            "Always check the return value: `(bool success, ) = addr.call{value: amount}(\"\"); " +
-            "require(success, \"Transfer failed\");`. Prefer .transfer() for simple ETH sends " +
+            'Always check the return value: `(bool success, ) = addr.call{value: amount}(""); ' +
+            'require(success, "Transfer failed");`. Prefer .transfer() for simple ETH sends ' +
             "if reentrancy is not a concern.",
           severity: "medium",
           file: filePath,

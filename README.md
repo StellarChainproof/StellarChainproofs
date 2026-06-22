@@ -17,6 +17,7 @@
 - [Vulnerability Rules](#vulnerability-rules)
 - [Data Model](#data-model)
 - [Configuration](#configuration)
+- [Plugin API](#plugin-api)
 - [Development Guide](#development-guide)
 - [Roadmap](#roadmap)
 - [License](#license)
@@ -27,10 +28,10 @@
 
 ChainProof helps developers catch smart contract vulnerabilities early — in the editor, terminal, and CI pipeline — without waiting weeks or paying tens of thousands for a full audit.
 
-| Problem | ChainProof response |
-|---------|---------------------|
-| $1.8B+ lost to exploits in 2023 | Built-in SWC-aligned detectors + optional Slither |
-| 6-week audit queues at $30k–$100k | Instant scans on every save and PR |
+| Problem                                  | ChainProof response                                 |
+| ---------------------------------------- | --------------------------------------------------- |
+| $1.8B+ lost to exploits in 2023          | Built-in SWC-aligned detectors + optional Slither   |
+| 6-week audit queues at $30k–$100k        | Instant scans on every save and PR                  |
 | No tooling for indie devs and small DAOs | Free, open-source CLI, extension, and GitHub Action |
 
 ### What ChainProof does
@@ -85,12 +86,12 @@ flowchart TB
 
 ### Package responsibilities
 
-| Package | NPM name | Purpose |
-|---------|----------|---------|
-| `packages/core` | `@chainproof/core` | AST parsing, rules, Slither wrapper, LLM layer, report generation |
-| `packages/cli` | `@chainproof/cli` | Command-line interface (`scan`, `check`, `init`) |
-| `packages/vscode-extension` | `chainproof-vscode` | Inline diagnostics, auto-scan on save, audit report command |
-| `packages/github-action` | — | CI gate, PR comments, workflow annotations, artifacts |
+| Package                     | NPM name            | Purpose                                                           |
+| --------------------------- | ------------------- | ----------------------------------------------------------------- |
+| `packages/core`             | `@chainproof/core`  | AST parsing, rules, Slither wrapper, LLM layer, report generation |
+| `packages/cli`              | `@chainproof/cli`   | Command-line interface (`scan`, `check`, `init`)                  |
+| `packages/vscode-extension` | `chainproof-vscode` | Inline diagnostics, auto-scan on save, audit report command       |
+| `packages/github-action`    | —                   | CI gate, PR comments, workflow annotations, artifacts             |
 
 ---
 
@@ -119,14 +120,14 @@ flowchart TB
 
 Findings are ranked for filtering and CI gating:
 
-| Severity | Rank | Typical use |
-|----------|------|-------------|
-| `critical` | 5 | Immediate blocker — e.g. reentrancy |
-| `high` | 4 | Must fix before deploy — e.g. `tx.origin` auth |
-| `medium` | 3 | Should review — e.g. unchecked return values |
-| `low` | 2 | Minor issues |
-| `info` | 1 | Informational notes |
-| `gas` | 0 | Optimization hints (not security vulnerabilities) |
+| Severity   | Rank | Typical use                                       |
+| ---------- | ---- | ------------------------------------------------- |
+| `critical` | 5    | Immediate blocker — e.g. reentrancy               |
+| `high`     | 4    | Must fix before deploy — e.g. `tx.origin` auth    |
+| `medium`   | 3    | Should review — e.g. unchecked return values      |
+| `low`      | 2    | Minor issues                                      |
+| `info`     | 1    | Informational notes                               |
+| `gas`      | 0    | Optimization hints (not security vulnerabilities) |
 
 ---
 
@@ -159,11 +160,11 @@ chainproof/
 
 ### Prerequisites
 
-| Tool | Version | Required for |
-|------|---------|--------------|
-| Node.js | ≥ 18 | CLI, extension, core engine |
-| Python | ≥ 3.10 | Slither (optional) |
-| `slither-analyzer` | latest | Extended static analysis (optional) |
+| Tool               | Version | Required for                        |
+| ------------------ | ------- | ----------------------------------- |
+| Node.js            | ≥ 18    | CLI, extension, core engine         |
+| Python             | ≥ 3.10  | Slither (optional)                  |
+| `slither-analyzer` | latest  | Extended static analysis (optional) |
 
 ```bash
 # Optional but recommended
@@ -200,14 +201,14 @@ chainproof scan contracts/ --api-key YOUR_ANTHROPIC_KEY
 chainproof scan contracts/ --min-severity high --no-slither
 ```
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--no-slither` | Slither on | Skip Slither even if installed |
-| `--no-llm` | LLM on if key set | Skip Claude enhancement |
-| `--api-key <key>` | `$ANTHROPIC_API_KEY` | Anthropic API key |
-| `--min-severity <level>` | `low` | Filter findings below this level |
-| `--format <format>` | `table` | Output: `table`, `json`, or `markdown` |
-| `--output <file>` | stdout | Write report to file |
+| Flag                     | Default              | Description                            |
+| ------------------------ | -------------------- | -------------------------------------- |
+| `--no-slither`           | Slither on           | Skip Slither even if installed         |
+| `--no-llm`               | LLM on if key set    | Skip Claude enhancement                |
+| `--api-key <key>`        | `$ANTHROPIC_API_KEY` | Anthropic API key                      |
+| `--min-severity <level>` | `low`                | Filter findings below this level       |
+| `--format <format>`      | `table`              | Output: `table`, `json`, or `markdown` |
+| `--output <file>`        | stdout               | Write report to file                   |
 
 **Exit codes:** `0` if no critical/high findings; `1` if critical or high issues are detected.
 
@@ -239,12 +240,12 @@ Install from the VS Code Marketplace (search **ChainProof**) or load from `packa
 
 ### Commands
 
-| Command | Description |
-|---------|-------------|
-| `ChainProof: Scan Current File` | Scan the active `.sol` file |
-| `ChainProof: Scan Entire Workspace` | Scan all open Solidity files |
+| Command                             | Description                        |
+| ----------------------------------- | ---------------------------------- |
+| `ChainProof: Scan Current File`     | Scan the active `.sol` file        |
+| `ChainProof: Scan Entire Workspace` | Scan all open Solidity files       |
 | `ChainProof: Generate Audit Report` | Write `chainproof-audit-report.md` |
-| `ChainProof: Clear Diagnostics` | Remove all ChainProof diagnostics |
+| `ChainProof: Clear Diagnostics`     | Remove all ChainProof diagnostics  |
 
 ### Behavior
 
@@ -273,13 +274,13 @@ Findings appear in the **Problems** panel with severity mapped to VS Code diagno
 
 Configure under **Settings → ChainProof**:
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `chainproof.enableOnSave` | `true` | Auto-scan on save |
-| `chainproof.useSlither` | `true` | Run Slither if available |
-| `chainproof.useLLM` | `false` | Enhance findings with Claude |
-| `chainproof.apiKey` | `""` | Anthropic API key (or `ANTHROPIC_API_KEY` env) |
-| `chainproof.minSeverity` | `low` | Minimum severity to display |
+| Setting                   | Default | Description                                    |
+| ------------------------- | ------- | ---------------------------------------------- |
+| `chainproof.enableOnSave` | `true`  | Auto-scan on save                              |
+| `chainproof.useSlither`   | `true`  | Run Slither if available                       |
+| `chainproof.useLLM`       | `false` | Enhance findings with Claude                   |
+| `chainproof.apiKey`       | `""`    | Anthropic API key (or `ANTHROPIC_API_KEY` env) |
+| `chainproof.minSeverity`  | `low`   | Minimum severity to display                    |
 
 ---
 
@@ -302,24 +303,24 @@ Add ChainProof to your workflow to gate merges on security findings.
 
 ### Action inputs
 
-| Input | Default | Description |
-|-------|---------|-------------|
-| `targets` | `contracts/` | Space-separated paths to scan |
-| `min-severity` | `high` | Fail CI at this severity or above |
-| `use-slither` | `true` | Run Slither if installed on runner |
-| `api-key` | `""` | Anthropic API key for LLM enhancement |
-| `report-format` | `markdown` | PR comment format |
-| `upload-report` | `true` | Write reports to `chainproof-reports/` |
-| `fail-on-gas` | `false` | Fail CI when gas hints are present |
+| Input           | Default      | Description                            |
+| --------------- | ------------ | -------------------------------------- |
+| `targets`       | `contracts/` | Space-separated paths to scan          |
+| `min-severity`  | `high`       | Fail CI at this severity or above      |
+| `use-slither`   | `true`       | Run Slither if installed on runner     |
+| `api-key`       | `""`         | Anthropic API key for LLM enhancement  |
+| `report-format` | `markdown`   | PR comment format                      |
+| `upload-report` | `true`       | Write reports to `chainproof-reports/` |
+| `fail-on-gas`   | `false`      | Fail CI when gas hints are present     |
 
 ### Action outputs
 
-| Output | Description |
-|--------|-------------|
-| `critical-count` | Number of critical findings |
-| `high-count` | Number of high findings |
-| `total-count` | Total findings including gas hints |
-| `report-path` | Path to generated Markdown report |
+| Output           | Description                        |
+| ---------------- | ---------------------------------- |
+| `critical-count` | Number of critical findings        |
+| `high-count`     | Number of high findings            |
+| `total-count`    | Total findings including gas hints |
+| `report-path`    | Path to generated Markdown report  |
 
 ### CI workflow
 
@@ -352,13 +353,13 @@ See [`.github/workflows/audit.yml`](.github/workflows/audit.yml) for a complete 
 
 ### Built-in detectors
 
-| ID | SWC | Name | Severity | Detection approach |
-|----|-----|------|----------|-------------------|
-| CP-107 | [SWC-107](https://swcregistry.io/docs/SWC-107) | Reentrancy | Critical | External call before state update in same function |
-| CP-115 | [SWC-115](https://swcregistry.io/docs/SWC-115) | `tx.origin` authentication | High | `tx.origin` used in `require` or access control |
-| CP-101 | [SWC-101](https://swcregistry.io/docs/SWC-101) | Integer overflow / underflow | High | Arithmetic on pragma `< 0.8` without SafeMath |
-| CP-104 | [SWC-104](https://swcregistry.io/docs/SWC-104) | Unchecked call return value | Medium | `.call` / `.send` return value not checked |
-| GAS-* | — | Gas optimizations | Gas | Storage in loops, packing, `keccak256`, etc. |
+| ID     | SWC                                            | Name                         | Severity | Detection approach                                 |
+| ------ | ---------------------------------------------- | ---------------------------- | -------- | -------------------------------------------------- |
+| CP-107 | [SWC-107](https://swcregistry.io/docs/SWC-107) | Reentrancy                   | Critical | External call before state update in same function |
+| CP-115 | [SWC-115](https://swcregistry.io/docs/SWC-115) | `tx.origin` authentication   | High     | `tx.origin` used in `require` or access control    |
+| CP-101 | [SWC-101](https://swcregistry.io/docs/SWC-101) | Integer overflow / underflow | High     | Arithmetic on pragma `< 0.8` without SafeMath      |
+| CP-104 | [SWC-104](https://swcregistry.io/docs/SWC-104) | Unchecked call return value  | Medium   | `.call` / `.send` return value not checked         |
+| GAS-\* | —                                              | Gas optimizations            | Gas      | Storage in loops, packing, `keccak256`, etc.       |
 
 When Slither is installed, all [Slither detectors](https://github.com/crytic/slither/wiki/Detector-Documentation) are merged in with deduplication by line + title. Slither findings are prefixed with `SLITHER-`.
 
@@ -399,7 +400,7 @@ Each detected issue is a `Finding` object:
 
 ```typescript
 interface Finding {
-  id: string;           // e.g. "CP-107"
+  id: string; // e.g. "CP-107"
   title: string;
   description: string;
   recommendation: string;
@@ -408,7 +409,7 @@ interface Finding {
   line: number;
   lineEnd?: number;
   snippet?: string;
-  swcId?: string;       // e.g. "SWC-107"
+  swcId?: string; // e.g. "SWC-107"
   llmEnhanced?: boolean;
 }
 ```
@@ -453,8 +454,8 @@ console.log(generateMarkdownReport(result));
 
 ### Environment variables
 
-| Variable | Used by | Description |
-|----------|---------|-------------|
+| Variable            | Used by                | Description                        |
+| ------------------- | ---------------------- | ---------------------------------- |
 | `ANTHROPIC_API_KEY` | CLI, extension, action | Claude API key for LLM enhancement |
 
 ### `.chainproofrc.json`
@@ -489,6 +490,214 @@ LLM calls are best-effort — if the API fails, the original scanner finding is 
 
 ---
 
+## Plugin API
+
+ChainProof is extensible. Teams can ship custom detection rules via plugins without modifying the core engine. Plugins enable:
+
+- **Protocol-specific rules** — Detect usage of non-approved oracle wrappers or deprecated internal functions
+- **Proprietary patterns** — Auditing firms can bundle closed-source detection logic
+- **Research & prototyping** — Test new vulnerability detectors before contributing to core
+- **Team standards** — Enforce internal coding practices across projects
+
+### Plugin structure
+
+A plugin is an NPM package or `.js` file that exports a `ChainProofPlugin` object:
+
+```typescript
+interface ChainProofPlugin {
+  name: string; // e.g. "myteam-rules"
+  version: string; // semantic version
+  rules: PluginRule[]; // array of detection rules
+}
+
+interface PluginRule {
+  id: string; // e.g. "MYTEAM-001"
+  title: string; // human-readable title
+  severity: Severity; // "critical" | "high" | "medium" | "low" | "info"
+  description: string; // why this is dangerous
+  recommendation?: string; // how to fix it
+  detect: (ast: ASTNode, source: string, filePath: string) => Finding[];
+}
+```
+
+### Example plugin
+
+See `examples/plugins/simple-rules/index.js` for a complete working example with two simple rules.
+
+**To run the example:**
+
+```bash
+# From the root directory
+npm run build
+chainproof scan examples/contracts/ --plugin examples/plugins/simple-rules/index.js
+```
+
+### Loading plugins
+
+Plugins can be loaded in three ways:
+
+#### CLI: `--plugin` flag
+
+```bash
+# Load a single plugin
+chainproof scan contracts/ --plugin ./my-rules.js
+
+# Load multiple plugins (repeat the flag)
+chainproof scan contracts/ --plugin ./my-rules.js --plugin @myteam/chainproof-rules
+
+# Load a plugin via npm package
+npm install @myteam/chainproof-rules
+chainproof scan contracts/ --plugin @myteam/chainproof-rules
+```
+
+#### Config file: `.chainproofrc.json`
+
+Create a `.chainproofrc.json` in your project root:
+
+```json
+{
+  "targets": ["contracts/"],
+  "useSlither": true,
+  "useLLM": false,
+  "plugins": ["./local-rules/my-plugin.js", "@myteam/chainproof-rules"]
+}
+```
+
+Then scan automatically picks up the plugins:
+
+```bash
+chainproof scan  # plugins from .chainproofrc.json
+```
+
+#### Programmatic: `ScanConfig.plugins`
+
+```typescript
+import { scan, loadPlugins } from "@chainproof/core";
+
+const plugins = loadPlugins(["@myteam/rules", "./local/rules.js"]);
+
+const result = await scan({
+  targets: ["contracts/"],
+  useSlither: true,
+  plugins,
+});
+```
+
+### Writing a plugin
+
+**Step 1: Create a `.js` or `.ts` file with a plugin object:**
+
+```javascript
+// my-custom-rules.js
+const plugin = {
+  name: "my-custom-rules",
+  version: "1.0.0",
+  rules: [
+    {
+      id: "CUSTOM-001",
+      title: "Disallow magic numbers",
+      severity: "medium",
+      description: "Magic numbers reduce code clarity and maintainability.",
+      recommendation: "Define named constants instead.",
+      detect(ast, source, filePath) {
+        // Return an array of Finding objects
+        return [];
+      },
+    },
+  ],
+};
+
+module.exports = plugin;
+```
+
+**Step 2: Use the visitor pattern to traverse the AST:**
+
+The `ast` parameter is a Solidity AST (from `@solidity-parser/parser`). ChainProof's internal rules use this pattern:
+
+```javascript
+detect(ast, source, filePath) {
+  const findings = [];
+
+  // Helper to walk the AST
+  function visit(node, callback) {
+    if (!node) return;
+    callback(node);
+    for (const key in node) {
+      if (Array.isArray(node[key])) {
+        node[key].forEach(child => visit(child, callback));
+      } else if (typeof node[key] === "object") {
+        visit(node[key], callback);
+      }
+    }
+  }
+
+  visit(ast, (node) => {
+    if (node.type === "FunctionDefinition") {
+      // Detect something about this function
+      if (/* your condition */) {
+        findings.push({
+          id: "CUSTOM-001",
+          title: "...",
+          severity: "medium",
+          description: "...",
+          recommendation: "...",
+          file: filePath,
+          line: node.loc?.start?.line || 0,
+          snippet: source.split("\n")[node.loc?.start?.line - 1],
+        });
+      }
+    }
+  });
+
+  return findings;
+}
+```
+
+**Step 3: Publish as an NPM package (optional):**
+
+```bash
+npm init -y
+npm publish
+```
+
+Then users can install and use it:
+
+```bash
+npm install @myteam/chainproof-rules
+chainproof scan contracts/ --plugin @myteam/chainproof-rules
+```
+
+### Plugin error handling
+
+If a plugin fails to load or throws an error during detection:
+
+- The warning is logged to stderr (non-fatal)
+- Scanning continues with other rules and plugins
+- The scan does not fail
+
+```
+[ChainProof] Failed to load plugin "my-plugin.js": Cannot find module
+[ChainProof] Plugin "my-rules" rule "CUSTOM-001" failed: TypeError ...
+```
+
+This design ensures plugins are optional enhancements, not blockers.
+
+### Plugin types
+
+You can import the plugin types for TypeScript projects:
+
+```typescript
+import type {
+  ChainProofPlugin,
+  PluginRule,
+  Finding,
+  ASTNode,
+  Severity,
+} from "@chainproof/core";
+```
+
+---
+
 ## Development Guide
 
 ### Build and test
@@ -518,7 +727,7 @@ import type { ASTNode } from "@solidity-parser/parser";
 export function detectMyRule(
   ast: ASTNode,
   source: string,
-  filePath: string
+  filePath: string,
 ): Finding[] {
   const findings: Finding[] = [];
 
@@ -546,12 +755,12 @@ export function detectMyRule(
 
 ### Workspace scripts
 
-| Script | Description |
-|--------|-------------|
-| `npm run build` | Build all packages |
-| `npm run test` | Run tests in all workspaces |
-| `npm run lint` | ESLint on `packages/*/src/**/*.ts` |
-| `npm run dev:cli` | Watch-build the CLI package |
+| Script            | Description                        |
+| ----------------- | ---------------------------------- |
+| `npm run build`   | Build all packages                 |
+| `npm run test`    | Run tests in all workspaces        |
+| `npm run lint`    | ESLint on `packages/*/src/**/*.ts` |
+| `npm run dev:cli` | Watch-build the CLI package        |
 
 ---
 

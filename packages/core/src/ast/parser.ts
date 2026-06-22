@@ -1,9 +1,5 @@
 import * as parser from "@solidity-parser/parser";
-
-// The @solidity-parser/parser package does not re-export ASTNode/ASTVisitor
-// from its main entry point, but they are available internally.
-// We use 'unknown' as a catch-all and cast as needed.
-export type ASTNode = unknown;
+import type { ASTNode } from "../types";
 
 export interface ParseResult {
   ast: ASTNode | null;
@@ -37,16 +33,18 @@ export function parseSolidity(source: string, filePath: string): ParseResult {
  */
 export function visit(
   ast: ASTNode,
-  visitors: Record<string, (node: ASTNode, parent?: ASTNode) => void>
+  visitors: Partial<Record<string, (node: ASTNode) => void>>,
 ): void {
-  (parser as any).visit(ast, visitors);
+  parser.visit(ast, visitors as any);
 }
 
 /**
  * Extract the source snippet for a node using its location info.
  */
 export function getSnippet(source: string, node: ASTNode): string {
-  const loc = (node as { loc?: { start?: { line?: number }; end?: { line?: number } } }).loc;
+  const loc = (
+    node as { loc?: { start?: { line?: number }; end?: { line?: number } } }
+  ).loc;
   if (!loc?.start?.line || !loc?.end?.line) return "";
   const lines = source.split("\n");
   return lines
