@@ -1,0 +1,8 @@
+{
+  "name": "@chainproof/example-rules",
+  "version": "1.0.0",
+  "description": "Example ChainProof plugin demonstrating custom rule detection",
+  "main": "index.js",
+  "author": "ChainProof Team",
+  "license": "MIT"
+}

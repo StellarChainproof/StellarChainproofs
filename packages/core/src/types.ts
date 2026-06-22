@@ -66,6 +66,30 @@ export interface ScanResult {
   };
 }
 
+// ─── Plugin API ──────────────────────────────────────────────────────────────
+
+export type ASTNode = any; // From @solidity-parser/parser
+
+export interface PluginRule {
+  /** Unique rule ID e.g. "MYTEAM-001" */
+  id: string;
+  /** Short human-readable title */
+  title: string;
+  severity: Severity;
+  /** Full explanation of the vulnerability */
+  description: string;
+  /** Suggested fix */
+  recommendation?: string;
+  /** Detection function */
+  detect: (ast: ASTNode, source: string, filePath: string) => Finding[];
+}
+
+export interface ChainProofPlugin {
+  name: string;
+  version: string;
+  rules: PluginRule[];
+}
+
 // ─── Scanner config ───────────────────────────────────────────────────────────
 
 export interface ScanConfig {
@@ -81,4 +105,6 @@ export interface ScanConfig {
   minSeverity?: Severity;
   /** Output format */
   outputFormat?: "json" | "markdown" | "table";
+  /** Array of plugins to load */
+  plugins?: ChainProofPlugin[];
 }

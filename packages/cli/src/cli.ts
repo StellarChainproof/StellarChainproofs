@@ -11,6 +11,9 @@ import {
   generateJSONReport,
   generateTableReport,
   isSlitherAvailable,
+  loadPlugins,
+  loadConfigFile,
+  mergePluginsFromConfig,
 } from "@chainproof/core";
 import type { ScanConfig } from "@chainproof/core";
 
@@ -25,10 +28,12 @@ function printBanner() {
  ██║     ██╔══██║██╔══██║██║██║╚██╗██║██╔═══╝ ██╔══██╗██║   ██║██║   ██║██╔══╝
  ╚██████╗██║  ██║██║  ██║██║██║ ╚████║██║     ██║  ██║╚██████╔╝╚██████╔╝██║
   ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝╚═╝     ╚═╝  ╚═╝ ╚═════╝  ╚═════╝ ╚═╝
-`)
+`),
   );
   console.log(
-    chalk.gray("  Smart Contract Audit Copilot — vulnerability scanner + gas advisor\n")
+    chalk.gray(
+      "  Smart Contract Audit Copilot — vulnerability scanner + gas advisor\n",
+    ),
   );
 }
 
@@ -46,19 +51,21 @@ program
   .option("--no-llm", "Skip LLM enhancement of findings")
   .option(
     "--api-key <key>",
-    "Anthropic API key (or set ANTHROPIC_API_KEY env var)"
+    "Anthropic API key (or set ANTHROPIC_API_KEY env var)",
   )
   .option(
     "--min-severity <level>",
     "Minimum severity to report: critical|high|medium|low|info",
-    "low"
+    "low",
   )
-  .option(
-    "--format <format>",
-    "Output format: table|json|markdown",
-    "table"
-  )
+  .option("--format <format>", "Output format: table|json|markdown", "table")
   .option("--output <file>", "Write report to file instead of stdout")
+  .option(
+    "--plugin <plugin>",
+    "Load a custom plugin (can be used multiple times)",
+    (value: string, previous: string[]) => [...(previous || []), value],
+    [],
+  )
   .action(
     async (
       targets: string[],
@@ -69,7 +76,8 @@ program
         minSeverity: string;
         format: string;
         output?: string;
-      }
+        plugin: string[];
+      },
     ) => {
       printBanner();
 
@@ -80,8 +88,8 @@ program
         console.warn(
           chalk.yellow(
             "  ⚠️  LLM enhancement disabled — no API key found.\n" +
-            "     Set ANTHROPIC_API_KEY or pass --api-key <key>\n"
-          )
+              "     Set ANTHROPIC_API_KEY or pass --api-key <key>\n",
+          ),
         );
       }
 
@@ -91,18 +99,38 @@ program
       if (opts.slither && !slitherAvailable) {
         console.warn(
           chalk.yellow(
-            "  ⚠️  Slither not found. Install with: pip install slither-analyzer\n"
-          )
+            "  ⚠️  Slither not found. Install with: pip install slither-analyzer\n",
+          ),
         );
+      }
+
+      // Load plugins from CLI or config file
+      let plugins = [];
+      if (opts.plugin.length > 0) {
+        plugins = loadPlugins(opts.plugin);
+      } else {
+        const configFile = loadConfigFile();
+        const merged = mergePluginsFromConfig(
+          {
+            targets,
+            useSlither,
+            useLLM,
+            apiKey,
+            minSeverity: opts.minSeverity as ScanConfig["minSeverity"],
+          },
+          configFile,
+        );
+        plugins = merged.plugins || [];
       }
 
       console.log(
         chalk.gray(
           `  Targets  : ${targets.join(", ")}\n` +
-          `  Slither  : ${useSlither ? chalk.green("enabled") : chalk.gray("disabled")}\n` +
-          `  LLM      : ${useLLM ? chalk.green("enabled") : chalk.gray("disabled")}\n` +
-          `  Severity : ${opts.minSeverity}+\n`
-        )
+            `  Slither  : ${useSlither ? chalk.green("enabled") : chalk.gray("disabled")}\n` +
+            `  LLM      : ${useLLM ? chalk.green("enabled") : chalk.gray("disabled")}\n` +
+            `  Plugins  : ${plugins.length > 0 ? chalk.green(`${plugins.length} loaded`) : chalk.gray("none")}\n` +
+            `  Severity : ${opts.minSeverity}+\n`,
+        ),
       );
 
       const spinner = ora("Scanning contracts...").start();
@@ -114,6 +142,7 @@ program
         apiKey,
         minSeverity: opts.minSeverity as ScanConfig["minSeverity"],
         outputFormat: opts.format as ScanConfig["outputFormat"],
+        plugins,
       };
 
       let result;
@@ -150,9 +179,7 @@ program
       if (!opts.output && opts.format === "table") {
         const mdPath = path.join(process.cwd(), "chainproof-report.md");
         fs.writeFileSync(mdPath, generateMarkdownReport(result), "utf-8");
-        console.log(
-          chalk.gray(`\n  💾 Full report saved to ${mdPath}`)
-        );
+        console.log(chalk.gray(`\n  💾 Full report saved to ${mdPath}`));
       }
 
       // ── Exit code: non-zero if critical/high found ─────────────────────────
@@ -161,18 +188,22 @@ program
         console.log(
           chalk.red(
             `\n  ❌ ${critical} critical, ${high} high severity issues found.\n` +
-            "     Resolve these before deploying to mainnet.\n"
-          )
+              "     Resolve these before deploying to mainnet.\n",
+          ),
         );
         process.exit(1);
       } else if (result.summary.total > 0) {
         console.log(
-          chalk.yellow(`\n  ⚠️  ${result.summary.total} findings. Review before deploying.\n`)
+          chalk.yellow(
+            `\n  ⚠️  ${result.summary.total} findings. Review before deploying.\n`,
+          ),
         );
       } else {
-        console.log(chalk.green("\n  ✅ No issues detected. Stay safe out there.\n"));
+        console.log(
+          chalk.green("\n  ✅ No issues detected. Stay safe out there.\n"),
+        );
       }
-    }
+    },
   );
 
 // ─── check command (fast pass/fail for CI) ────────────────────────────────────
@@ -182,51 +213,60 @@ program
   .description("Fast pass/fail check — exits 1 if critical/high issues found")
   .option("--no-slither", "Skip Slither")
   .option("--api-key <key>", "Anthropic API key")
-  .action(async (targets: string[], opts: { slither: boolean; apiKey?: string }) => {
-    const spinner = ora("Running security check...").start();
+  .action(
+    async (targets: string[], opts: { slither: boolean; apiKey?: string }) => {
+      const spinner = ora("Running security check...").start();
 
-    const config: ScanConfig = {
-      targets,
-      useSlither: opts.slither && isSlitherAvailable(),
-      useLLM: false,
-      minSeverity: "high",
-    };
+      const config: ScanConfig = {
+        targets,
+        useSlither: opts.slither && isSlitherAvailable(),
+        useLLM: false,
+        minSeverity: "high",
+      };
 
-    try {
-      const result = await scan(config);
-      const { critical, high } = result.summary;
+      try {
+        const result = await scan(config);
+        const { critical, high } = result.summary;
 
-      if (critical > 0 || high > 0) {
-        spinner.fail(
-          `FAIL — ${critical} critical, ${high} high severity issues found`
-        );
-        result.files.forEach((f) => {
-          f.findings.forEach((finding) => {
-            if (finding.severity === "critical" || finding.severity === "high") {
-              console.error(
-                chalk.red(
-                  `  [${finding.severity.toUpperCase()}] ${finding.file}:${finding.line} — ${finding.title}`
-                )
-              );
-            }
+        if (critical > 0 || high > 0) {
+          spinner.fail(
+            `FAIL — ${critical} critical, ${high} high severity issues found`,
+          );
+          result.files.forEach((f) => {
+            f.findings.forEach((finding) => {
+              if (
+                finding.severity === "critical" ||
+                finding.severity === "high"
+              ) {
+                console.error(
+                  chalk.red(
+                    `  [${finding.severity.toUpperCase()}] ${f.file}:${finding.line} — ${finding.title}`,
+                  ),
+                );
+              }
+            });
           });
-        });
+          process.exit(1);
+        } else {
+          spinner.succeed(
+            `PASS — ${result.files.length} file(s) checked, no critical/high issues`,
+          );
+          process.exit(0);
+        }
+      } catch (err) {
+        spinner.fail(`Check failed: ${err}`);
         process.exit(1);
-      } else {
-        spinner.succeed(`PASS — ${result.files.length} file(s) checked, no critical/high issues`);
-        process.exit(0);
       }
-    } catch (err) {
-      spinner.fail(`Check failed: ${err}`);
-      process.exit(1);
-    }
-  });
+    },
+  );
 
 // ─── init command — generate .chainproofrc config ────────────────────────────
 
 program
   .command("init")
-  .description("Create a .chainproofrc.json config file in the current directory")
+  .description(
+    "Create a .chainproofrc.json config file in the current directory",
+  )
   .action(() => {
     const config = {
       targets: ["contracts/"],
@@ -235,6 +275,7 @@ program
       minSeverity: "low",
       outputFormat: "markdown",
       output: "audit-report.md",
+      plugins: [],
     };
     const configPath = path.join(process.cwd(), ".chainproofrc.json");
     if (fs.existsSync(configPath)) {

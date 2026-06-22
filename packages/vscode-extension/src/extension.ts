@@ -5,12 +5,15 @@ import {
   scan,
   generateMarkdownReport,
   isSlitherAvailable,
+  loadPlugins,
 } from "@chainproof/core";
 import type { Finding, GasHint, ScanConfig } from "@chainproof/core";
 
 // ─── Severity → VS Code DiagnosticSeverity ───────────────────────────────────
 
-function toVSCodeSeverity(severity: Finding["severity"]): vscode.DiagnosticSeverity {
+function toVSCodeSeverity(
+  severity: Finding["severity"],
+): vscode.DiagnosticSeverity {
   switch (severity) {
     case "critical":
     case "high":
@@ -35,8 +38,12 @@ let outputChannel: vscode.OutputChannel;
 
 export function activate(context: vscode.ExtensionContext) {
   outputChannel = vscode.window.createOutputChannel("ChainProof");
-  diagnosticCollection = vscode.languages.createDiagnosticCollection("chainproof");
-  statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+  diagnosticCollection =
+    vscode.languages.createDiagnosticCollection("chainproof");
+  statusBarItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Left,
+    100,
+  );
   statusBarItem.command = "chainproof.scanCurrentFile";
   statusBarItem.text = "$(shield) ChainProof";
   statusBarItem.tooltip = "Click to scan current Solidity file";
@@ -45,13 +52,13 @@ export function activate(context: vscode.ExtensionContext) {
   // Register commands
   context.subscriptions.push(
     vscode.commands.registerCommand("chainproof.scanCurrentFile", () =>
-      scanCurrentFile()
+      scanCurrentFile(),
     ),
     vscode.commands.registerCommand("chainproof.scanWorkspace", () =>
-      scanWorkspace()
+      scanWorkspace(),
     ),
     vscode.commands.registerCommand("chainproof.generateReport", () =>
-      generateReport()
+      generateReport(),
     ),
     vscode.commands.registerCommand("chainproof.clearDiagnostics", () => {
       diagnosticCollection.clear();
@@ -60,7 +67,7 @@ export function activate(context: vscode.ExtensionContext) {
     }),
     diagnosticCollection,
     statusBarItem,
-    outputChannel
+    outputChannel,
   );
 
   // Auto-scan on save
@@ -70,7 +77,7 @@ export function activate(context: vscode.ExtensionContext) {
       if (config.get("enableOnSave") && doc.fileName.endsWith(".sol")) {
         scanDocument(doc);
       }
-    })
+    }),
   );
 
   // Scan on open
@@ -79,7 +86,7 @@ export function activate(context: vscode.ExtensionContext) {
       if (doc.fileName.endsWith(".sol")) {
         scanDocument(doc);
       }
-    })
+    }),
   );
 
   // Scan any already-open .sol files
@@ -87,7 +94,9 @@ export function activate(context: vscode.ExtensionContext) {
     .filter((d) => d.fileName.endsWith(".sol"))
     .forEach((d) => scanDocument(d));
 
-  outputChannel.appendLine("[ChainProof] Extension activated. Ready to scan Solidity files.");
+  outputChannel.appendLine(
+    "[ChainProof] Extension activated. Ready to scan Solidity files.",
+  );
 }
 
 // ─── Scan a single TextDocument ───────────────────────────────────────────────
@@ -97,12 +106,17 @@ async function scanDocument(document: vscode.TextDocument) {
   const apiKey =
     config.get<string>("apiKey") || process.env.ANTHROPIC_API_KEY || undefined;
 
+  // Load plugins from settings
+  const pluginSpecs = config.get<string[]>("plugins") || [];
+  const plugins = loadPlugins(pluginSpecs);
+
   const scanConfig: ScanConfig = {
     targets: [document.fileName],
     useSlither: config.get("useSlither") ?? true,
     useLLM: (config.get("useLLM") ?? false) && !!apiKey,
     apiKey,
     minSeverity: config.get("minSeverity") ?? "low",
+    plugins,
   };
 
   statusBarItem.text = "$(sync~spin) ChainProof scanning...";
@@ -123,7 +137,7 @@ async function scanDocument(document: vscode.TextDocument) {
       const diag = new vscode.Diagnostic(
         range,
         message,
-        toVSCodeSeverity(finding.severity)
+        toVSCodeSeverity(finding.severity),
       );
       diag.source = "ChainProof";
       diag.code = finding.swcId ?? finding.id;
@@ -133,7 +147,7 @@ async function scanDocument(document: vscode.TextDocument) {
         diag.relatedInformation = [
           new vscode.DiagnosticRelatedInformation(
             new vscode.Location(document.uri, range),
-            `SWC Registry: https://swcregistry.io/docs/${finding.swcId}`
+            `SWC Registry: https://swcregistry.io/docs/${finding.swcId}`,
           ),
         ];
       }
@@ -148,7 +162,7 @@ async function scanDocument(document: vscode.TextDocument) {
       const diag = new vscode.Diagnostic(
         range,
         `⛽ Gas: ${hint.description} (${hint.estimatedSaving})`,
-        vscode.DiagnosticSeverity.Hint
+        vscode.DiagnosticSeverity.Hint,
       );
       diag.source = "ChainProof";
       diag.code = "GAS";
@@ -161,10 +175,14 @@ async function scanDocument(document: vscode.TextDocument) {
     const { critical, high, total } = result.summary;
     if (critical > 0) {
       statusBarItem.text = `$(error) ChainProof: ${critical} critical`;
-      statusBarItem.backgroundColor = new vscode.ThemeColor("statusBarItem.errorBackground");
+      statusBarItem.backgroundColor = new vscode.ThemeColor(
+        "statusBarItem.errorBackground",
+      );
     } else if (high > 0) {
       statusBarItem.text = `$(warning) ChainProof: ${high} high`;
-      statusBarItem.backgroundColor = new vscode.ThemeColor("statusBarItem.warningBackground");
+      statusBarItem.backgroundColor = new vscode.ThemeColor(
+        "statusBarItem.warningBackground",
+      );
     } else if (total > 0) {
       statusBarItem.text = `$(info) ChainProof: ${total} hints`;
       statusBarItem.backgroundColor = undefined;
@@ -174,11 +192,13 @@ async function scanDocument(document: vscode.TextDocument) {
     }
 
     outputChannel.appendLine(
-      `[ChainProof] ${document.fileName}: ${total} findings (${critical} critical, ${high} high)`
+      `[ChainProof] ${document.fileName}: ${total} findings (${critical} critical, ${high} high)`,
     );
   } catch (err) {
     statusBarItem.text = "$(error) ChainProof: error";
-    outputChannel.appendLine(`[ChainProof] Error scanning ${document.fileName}: ${err}`);
+    outputChannel.appendLine(
+      `[ChainProof] Error scanning ${document.fileName}: ${err}`,
+    );
   }
 }
 
@@ -191,11 +211,15 @@ async function scanCurrentFile() {
     return;
   }
   if (!editor.document.fileName.endsWith(".sol")) {
-    vscode.window.showWarningMessage("ChainProof: Active file is not a Solidity file");
+    vscode.window.showWarningMessage(
+      "ChainProof: Active file is not a Solidity file",
+    );
     return;
   }
   await scanDocument(editor.document);
-  vscode.window.showInformationMessage("ChainProof: Scan complete — check Problems panel");
+  vscode.window.showInformationMessage(
+    "ChainProof: Scan complete — check Problems panel",
+  );
 }
 
 async function scanWorkspace() {
@@ -213,10 +237,10 @@ async function scanWorkspace() {
     },
     async () => {
       const docs = vscode.workspace.textDocuments.filter((d) =>
-        d.fileName.endsWith(".sol")
+        d.fileName.endsWith(".sol"),
       );
       await Promise.all(docs.map((d) => scanDocument(d)));
-    }
+    },
   );
 
   vscode.window.showInformationMessage("ChainProof: Workspace scan complete");
@@ -234,6 +258,10 @@ async function generateReport() {
   const apiKey =
     config.get<string>("apiKey") || process.env.ANTHROPIC_API_KEY || undefined;
 
+  // Load plugins from settings
+  const pluginSpecs = config.get<string[]>("plugins") || [];
+  const plugins = loadPlugins(pluginSpecs);
+
   await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
@@ -247,6 +275,7 @@ async function generateReport() {
         useLLM: (config.get("useLLM") ?? false) && !!apiKey,
         apiKey,
         minSeverity: "low",
+        plugins,
       };
 
       const result = await scan(scanConfig);
@@ -257,9 +286,9 @@ async function generateReport() {
       const doc = await vscode.workspace.openTextDocument(reportPath);
       await vscode.window.showTextDocument(doc);
       vscode.window.showInformationMessage(
-        `ChainProof: Report generated at chainproof-audit-report.md`
+        `ChainProof: Report generated at chainproof-audit-report.md`,
       );
-    }
+    },
   );
 }
 

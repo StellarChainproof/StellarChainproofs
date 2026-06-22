@@ -1,6 +1,5 @@
 import { visit, getSnippet } from "../ast/parser";
-import type { Finding } from "../types";
-import type { ASTNode } from "@solidity-parser/parser";
+import type { Finding, ASTNode } from "../types";
 
 /**
  * SWC-115: Authorization through tx.origin
@@ -12,7 +11,7 @@ import type { ASTNode } from "@solidity-parser/parser";
 export function detectTxOrigin(
   ast: ASTNode,
   source: string,
-  filePath: string
+  filePath: string,
 ): Finding[] {
   const findings: Finding[] = [];
 
@@ -24,10 +23,7 @@ export function detectTxOrigin(
         loc?: { start?: { line?: number } };
       };
 
-      if (
-        member.memberName === "origin" &&
-        member.expression?.name === "tx"
-      ) {
+      if (member.memberName === "origin" && member.expression?.name === "tx") {
         const line = member.loc?.start?.line ?? 0;
         findings.push({
           id: "CP-115",

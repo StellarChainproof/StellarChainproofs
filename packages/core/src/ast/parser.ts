@@ -1,5 +1,5 @@
 import * as parser from "@solidity-parser/parser";
-import type { ASTNode } from "@solidity-parser/parser";
+import type { ASTNode } from "../types";
 
 export interface ParseResult {
   ast: ASTNode | null;
@@ -33,16 +33,18 @@ export function parseSolidity(source: string, filePath: string): ParseResult {
  */
 export function visit(
   ast: ASTNode,
-  visitors: Partial<Record<string, (node: ASTNode) => void>>
+  visitors: Partial<Record<string, (node: ASTNode) => void>>,
 ): void {
-  parser.visit(ast, visitors as parser.ASTVisitor);
+  parser.visit(ast, visitors as any);
 }
 
 /**
  * Extract the source snippet for a node using its location info.
  */
 export function getSnippet(source: string, node: ASTNode): string {
-  const loc = (node as { loc?: { start?: { line?: number }; end?: { line?: number } } }).loc;
+  const loc = (
+    node as { loc?: { start?: { line?: number }; end?: { line?: number } } }
+  ).loc;
   if (!loc?.start?.line || !loc?.end?.line) return "";
   const lines = source.split("\n");
   return lines

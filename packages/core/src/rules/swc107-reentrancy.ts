@@ -1,6 +1,5 @@
 import { visit, getSnippet } from "../ast/parser";
-import type { Finding } from "../types";
-import type { ASTNode } from "@solidity-parser/parser";
+import type { Finding, ASTNode } from "../types";
 
 /**
  * SWC-107: Reentrancy
@@ -12,7 +11,7 @@ import type { ASTNode } from "@solidity-parser/parser";
 export function detectReentrancy(
   ast: ASTNode,
   source: string,
-  filePath: string
+  filePath: string,
 ): Finding[] {
   const findings: Finding[] = [];
 
@@ -51,7 +50,10 @@ export function detectReentrancy(
         ) {
           const exprStr = JSON.stringify(stmt);
           // Heuristic: assignment after call with no msg.sender guard
-          if (exprStr.includes('"operator":"="') || exprStr.includes('"operator":"-="')) {
+          if (
+            exprStr.includes('"operator":"="') ||
+            exprStr.includes('"operator":"-="')
+          ) {
             stateWriteAfterCall = true;
           }
         }

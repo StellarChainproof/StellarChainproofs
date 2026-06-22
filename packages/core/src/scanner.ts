@@ -4,9 +4,13 @@ import { parseSolidity } from "./ast/parser";
 import { runSlither, isSlitherAvailable } from "./ast/slither";
 import { detectReentrancy } from "./rules/swc107-reentrancy";
 import { detectTxOrigin } from "./rules/swc115-tx-origin";
-import { detectIntegerOverflow, detectUncheckedReturn } from "./rules/swc101-overflow";
+import {
+  detectIntegerOverflow,
+  detectUncheckedReturn,
+} from "./rules/swc101-overflow";
 import { detectGasIssues } from "./rules/gas-optimizer";
 import { enhanceFindingsWithLLM } from "./llm/enhancer";
+import { loadPlugins } from "./plugins";
 import type {
   ScanConfig,
   ScanResult,
@@ -32,7 +36,9 @@ function collectSolFiles(targets: string[]): string[] {
     if (!fs.existsSync(target)) continue;
     const stat = fs.statSync(target);
     if (stat.isDirectory()) {
-      const entries = fs.readdirSync(target, { recursive: true } as { recursive: boolean }) as string[];
+      const entries = fs.readdirSync(target, { recursive: true } as {
+        recursive: boolean;
+      }) as string[];
       entries
         .filter((e) => e.endsWith(".sol"))
         .forEach((e) => files.push(path.join(target, e)));
@@ -45,7 +51,7 @@ function collectSolFiles(targets: string[]): string[] {
 
 async function scanFile(
   filePath: string,
-  config: ScanConfig
+  config: ScanConfig,
 ): Promise<FileScanResult> {
   let source: string;
   try {
@@ -80,6 +86,23 @@ async function scanFile(
     ...detectUncheckedReturn(ast, source, filePath),
   ];
 
+  // ── Plugin rules ───────────────────────────────────────────────────────────
+  if (config.plugins) {
+    for (const plugin of config.plugins) {
+      for (const rule of plugin.rules) {
+        try {
+          findings.push(...rule.detect(ast, source, filePath));
+        } catch (error) {
+          console.warn(
+            `[ChainProof] Plugin "${plugin.name}" rule "${rule.id}" failed: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
+      }
+    }
+  }
+
   const gasHints = detectGasIssues(ast, source, filePath);
 
   // ── Slither (if available + enabled) ──────────────────────────────────────
@@ -112,9 +135,7 @@ async function scanFile(
 export async function scan(config: ScanConfig): Promise<ScanResult> {
   const files = collectSolFiles(config.targets);
 
-  const fileResults = await Promise.all(
-    files.map((f) => scanFile(f, config))
-  );
+  const fileResults = await Promise.all(files.map((f) => scanFile(f, config)));
 
   const summary = {
     critical: 0,
