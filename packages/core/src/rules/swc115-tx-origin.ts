@@ -1,5 +1,7 @@
 import { visit, getSnippet } from "../ast/parser";
+import type { MergedMember } from "../ast/import-graph";
 import type { Finding, ASTNode } from "../types";
+import { applyFindingContext, type RuleOptions } from "./rule-context";
 
 /**
  * SWC-115: Authorization through tx.origin
@@ -14,47 +16,29 @@ export function detectTxOrigin(
   ast: ASTNode,
   source: string,
   filePath: string,
+  options?: RuleOptions,
 ): Finding[] {
   const findings: Finding[] = [];
 
-  visit(ast, {
-    MemberAccess(node: ASTNode) {
-      const member = node as {
-        memberName?: string;
-        expression?: { name?: string };
-        loc?: { start?: { line?: number } };
-      };
+  const members = options?.contractView?.members ?? [];
+  const nodesToCheck: Array<{ node: ASTNode; src: string; member?: MergedMember }> = [];
 
-      if (member.memberName === "origin" && member.expression?.name === "tx") {
-        const line = member.loc?.start?.line ?? 0;
-        findings.push({
-          id: "CP-115",
-          swcId: "SWC-115",
-          title: "Use of tx.origin for authentication",
-          description:
-            "tx.origin refers to the original external account that initiated the transaction, " +
-            "not the immediate caller. A phishing contract can exploit this to perform " +
-            "unauthorized actions on behalf of the victim.",
-          recommendation:
-            "Replace tx.origin with msg.sender for authorization checks. " +
-            "If you need to distinguish EOAs from contracts, use " +
-            "msg.sender == tx.origin as a secondary check, not the primary guard.",
-          severity: "high",
-          file: filePath,
-          line,
-          snippet: getSnippet(source, node),
-        });
-      }
+  if (members.length > 0) {
+    for (const m of members) {
+      nodesToCheck.push({ node: m.node, src: m.source, member: m });
     }
-    return findings;
+  } else {
+    nodesToCheck.push({ node: ast, src: source });
   }
 
-  visit(ast, {
-    MemberAccess(node: ASTNode) {
-      const finding = checkTxOriginNode(node, source, filePath);
-      if (finding) findings.push(finding);
-    },
-  });
+  for (const { node, src, member } of nodesToCheck) {
+    visit(node, {
+      MemberAccess(accessNode: ASTNode) {
+        const finding = checkTxOriginNode(accessNode, src, filePath, member, options);
+        if (finding) findings.push(finding);
+      },
+    });
+  }
 
   return findings;
 }
@@ -64,7 +48,7 @@ function checkTxOriginNode(
   source: string,
   filePath: string,
   member?: MergedMember,
-  options?: RuleOptions
+  options?: RuleOptions,
 ): Finding | null {
   const access = node as {
     memberName?: string;
@@ -96,6 +80,6 @@ function checkTxOriginNode(
       snippet: getSnippet(source, node),
     },
     member,
-    options?.contractView
+    options?.contractView,
   );
 }

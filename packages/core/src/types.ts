@@ -129,7 +129,7 @@ export interface ScanConfig {
   /** Send findings to LLM for explanation */
   useLLM: boolean;
   /** Compute complexity metrics */
-  useMetrics: boolean;
+  useMetrics?: boolean;
   /** Anthropic API key */
   apiKey?: string;
 

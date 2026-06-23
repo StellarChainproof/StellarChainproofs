@@ -9,12 +9,14 @@ import {
 import { runSlither, isSlitherAvailable } from "./ast/slither";
 import { detectReentrancy } from "./rules/swc107-reentrancy";
 import { detectTxOrigin } from "./rules/swc115-tx-origin";
+import { detectUnprotectedUpgrade } from "./rules/swc116-unprotected-upgrade";
 import {
   detectIntegerOverflow,
   detectUncheckedReturn,
 } from "./rules/swc101-overflow";
 import { detectGasIssues } from "./rules/gas-optimizer";
 import { enhanceFindingsWithLLM } from "./llm/enhancer";
+import { analyzeContract } from "./metrics/complexity";
 import { loadPlugins } from "./plugins";
 import type {
   ScanConfig,
@@ -187,7 +189,7 @@ async function scanFileLegacy(
   }
 
   if (config.useLLM && config.apiKey && findings.length > 0) {
-    findings = await enhanceFindingsWithLLM(findings, source, config.apiKey);
+    findings = await enhanceFindingsWithLLM(findings, source, config);
   }
 
 
@@ -274,7 +276,33 @@ export async function scan(config: ScanConfig): Promise<ScanResult> {
   const initialFiles = collectSolFiles(config.targets);
   const files = initialFiles.length > 0 ? expandWithImports(initialFiles) : initialFiles;
 
-  const fileResults = await Promise.all(files.map((f) => scanFile(f, config)));
+  // Build import graph once for the full file set
+  const graph = files.length > 0 ? buildImportGraph(files) : null;
+  const mergedViews = graph && hasImportDirectives(graph) ? buildMergedContractViews(graph) : [];
+
+  // Group merged views by the child file
+  const viewsByFile = new Map<string, ReturnType<typeof buildMergedContractViews>>();
+  for (const view of mergedViews) {
+    const arr = viewsByFile.get(view.file) ?? [];
+    arr.push(view);
+    viewsByFile.set(view.file, arr);
+  }
+
+  const allMetrics: ContractMetrics[] = [];
+  const fileResults = await Promise.all(
+    files.map(async (f) => {
+      const views = viewsByFile.get(path.resolve(f));
+      const result = await scanFile(f, config, views);
+      if (config.useMetrics) {
+        try {
+          allMetrics.push(...computeMetricsForFile(f));
+        } catch {
+          // ignore metrics errors
+        }
+      }
+      return result;
+    }),
+  );
 
   const summary = {
     critical: 0,
@@ -302,4 +330,90 @@ export async function scan(config: ScanConfig): Promise<ScanResult> {
     summary,
     metrics: allMetrics.length > 0 ? allMetrics : undefined,
   };
+}
+
+async function scanFile(
+  filePath: string,
+  config: ScanConfig,
+  views?: ReturnType<typeof buildMergedContractViews>,
+): Promise<FileScanResult> {
+  let source: string;
+  try {
+    source = fs.readFileSync(filePath, "utf-8");
+  } catch (e) {
+    return { file: filePath, findings: [], gasHints: [], slitherRan: false, parseError: `Could not read file: ${e}` };
+  }
+
+  const { ast, error } = parseSolidity(source, filePath);
+  if (!ast) {
+    return { file: filePath, findings: [], gasHints: [], slitherRan: false, parseError: error };
+  }
+
+  let findings: Finding[];
+
+  if (views && views.length > 0) {
+    // Use merged contract views for inherited-vulnerability detection
+    const viewFindings = views.flatMap((view) => runRulesOnView(view, config));
+    // Also run file-level rules that don't use views
+    const fileFindings = [
+      ...detectIntegerOverflow(ast, source, filePath),
+      ...detectUncheckedReturn(ast, source, filePath),
+    ];
+    const allRaw = [...viewFindings, ...fileFindings];
+    // Deduplicate by id+line+file
+    const seen = new Set<string>();
+    findings = allRaw.filter((f) => {
+      const key = `${f.id}-${f.line}-${f.file}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  } else {
+    findings = [
+      ...detectReentrancy(ast, source, filePath),
+      ...detectTxOrigin(ast, source, filePath),
+      ...detectUnprotectedUpgrade(ast, source, filePath),
+      ...detectIntegerOverflow(ast, source, filePath),
+      ...detectUncheckedReturn(ast, source, filePath),
+    ];
+  }
+
+  // Plugin rules
+  if (config.plugins) {
+    for (const plugin of config.plugins) {
+      for (const rule of plugin.rules) {
+        try {
+          findings.push(...rule.detect(ast, source, filePath));
+        } catch (err) {
+          console.warn(
+            `[ChainProof] Plugin "${plugin.name}" rule "${rule.id}" failed: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+        }
+      }
+    }
+  }
+
+  const gasHints = detectGasIssues(ast, source, filePath);
+
+  const slitherRan = config.useSlither && isSlitherAvailable();
+  if (slitherRan) {
+    const slitherFindings = runSlither(filePath);
+    const existingKeys = new Set(findings.map((f) => `${f.line}-${f.title}`));
+    for (const sf of slitherFindings) {
+      if (!existingKeys.has(`${sf.line}-${sf.title}`)) findings.push(sf);
+    }
+  }
+
+  if (config.minSeverity) {
+    const minRank = SEVERITY_RANK[config.minSeverity];
+    findings = findings.filter((f) => SEVERITY_RANK[f.severity] >= minRank);
+  }
+
+  if (config.useLLM && config.apiKey && findings.length > 0) {
+    findings = await enhanceFindingsWithLLM(findings, source, config);
+  }
+
+  return { file: filePath, findings, gasHints, slitherRan };
 }

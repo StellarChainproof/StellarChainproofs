@@ -49,14 +49,13 @@ describe("scan() — integration", () => {
     expect(txOrigin.length).toBeGreaterThan(0);
   });
 
-  it("CP-101 rule does not flag compound-assignment operators (+=) in VulnerableVault.sol", async () => {
-    // VulnerableVault uses `+=` / `-=` (compound assignments), not bare `+` / `-` binary ops.
-    // detectIntegerOverflow only walks BinaryOperation nodes, so compound assignments are
-    // not detected — this is a known limitation of the current rule implementation.
+  it("CP-101 rule detects compound-assignment operators (+=/-=) in VulnerableVault.sol", async () => {
+    // VulnerableVault uses pragma ^0.7.0 with `+=` / `-=` arithmetic.
+    // The symbolic execution pass surfaces compound assignments on pre-0.8 contracts.
     const result = await scan({ targets: [VAULT_PATH], useSlither: false, useLLM: false });
     const findings = result.files.flatMap((f) => f.findings);
     const overflow = findings.filter((f) => f.id === "CP-101");
-    expect(overflow).toHaveLength(0);
+    expect(overflow.length).toBeGreaterThan(0);
   });
 
   it("SecureVault.sol scan completes without throwing", async () => {

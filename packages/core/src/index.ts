@@ -1,4 +1,5 @@
 export { scan } from "./scanner";
+export { enhanceFindingsWithLLM } from "./llm/enhancer";
 export {
   generateMarkdownReport,
   generateJSONReport,
@@ -17,6 +18,7 @@ export type {
   ChainProofPlugin,
   PluginRule,
   ASTNode,
+  ContractMetrics,
 } from "./types";
 export type {
   ImportGraph,

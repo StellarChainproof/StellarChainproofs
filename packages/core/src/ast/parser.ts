@@ -1,6 +1,8 @@
 import * as parser from "@solidity-parser/parser";
 import type { ASTNode } from "../types";
 
+export type { ASTNode };
+
 export interface ParseResult {
   ast: ASTNode | null;
   error?: string;

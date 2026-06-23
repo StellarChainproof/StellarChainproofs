@@ -7,6 +7,7 @@ import {
   generateMarkdownReport,
   isSlitherAvailable,
   loadPlugins,
+  enhanceFindingsWithLLM,
 } from "@chainproof/core";
 import type { Finding, GasHint, ScanConfig } from "@chainproof/core";
 
@@ -441,6 +442,7 @@ async function explainVulnerability(uri: vscode.Uri, finding: Finding) {
           targets: [document.fileName],
           useSlither: config.get("useSlither") ?? true,
           useLLM: true,
+          useMetrics: false,
           apiKey,
           minSeverity: config.get("minSeverity") ?? "low",
         };
