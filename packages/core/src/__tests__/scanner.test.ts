@@ -13,7 +13,7 @@ const SECURE_PATH = path.resolve(
 
 describe("scan() — integration", () => {
   it("returns a valid ScanResult structure", async () => {
-    const result = await scan({ targets: [VAULT_PATH], useSlither: false, useLLM: false });
+    const result = await scan({ targets: [VAULT_PATH], useSlither: false, useLLM: false, useMetrics: false });
     expect(result).toHaveProperty("version");
     expect(result).toHaveProperty("timestamp");
     expect(result).toHaveProperty("files");
@@ -30,20 +30,20 @@ describe("scan() — integration", () => {
   });
 
   it("finds findings in VulnerableVault.sol", async () => {
-    const result = await scan({ targets: [VAULT_PATH], useSlither: false, useLLM: false });
+    const result = await scan({ targets: [VAULT_PATH], useSlither: false, useLLM: false, useMetrics: false });
     expect(result.files).toHaveLength(1);
     expect(result.summary.total).toBeGreaterThan(0);
   });
 
   it("detects reentrancy (CP-107) in VulnerableVault.sol", async () => {
-    const result = await scan({ targets: [VAULT_PATH], useSlither: false, useLLM: false });
+    const result = await scan({ targets: [VAULT_PATH], useSlither: false, useLLM: false, useMetrics: false });
     const findings = result.files.flatMap((f) => f.findings);
     const reentrancy = findings.filter((f) => f.id === "CP-107");
     expect(reentrancy.length).toBeGreaterThan(0);
   });
 
   it("detects tx.origin (CP-115) in VulnerableVault.sol", async () => {
-    const result = await scan({ targets: [VAULT_PATH], useSlither: false, useLLM: false });
+    const result = await scan({ targets: [VAULT_PATH], useSlither: false, useLLM: false, useMetrics: false });
     const findings = result.files.flatMap((f) => f.findings);
     const txOrigin = findings.filter((f) => f.id === "CP-115");
     expect(txOrigin.length).toBeGreaterThan(0);
@@ -53,7 +53,7 @@ describe("scan() — integration", () => {
     // VulnerableVault uses `+=` / `-=` (compound assignments), not bare `+` / `-` binary ops.
     // detectIntegerOverflow only walks BinaryOperation nodes, so compound assignments are
     // not detected — this is a known limitation of the current rule implementation.
-    const result = await scan({ targets: [VAULT_PATH], useSlither: false, useLLM: false });
+    const result = await scan({ targets: [VAULT_PATH], useSlither: false, useLLM: false, useMetrics: false });
     const findings = result.files.flatMap((f) => f.findings);
     const overflow = findings.filter((f) => f.id === "CP-101");
     expect(overflow).toHaveLength(0);
@@ -63,27 +63,27 @@ describe("scan() — integration", () => {
     // SecureVault uses string literals in require() calls; the reentrancy heuristic
     // matches any JSON "value" key (including StringLiteral nodes) as an "external call",
     // which can produce false positives. This test verifies the scan itself runs safely.
-    const result = await scan({ targets: [SECURE_PATH], useSlither: false, useLLM: false });
+    const result = await scan({ targets: [SECURE_PATH], useSlither: false, useLLM: false, useMetrics: false });
     expect(result.files).toHaveLength(1);
     expect(result.files[0].parseError).toBeUndefined();
   });
 
   it("does not flag CP-101 overflow in SecureVault.sol (uses ^0.8.20)", async () => {
-    const result = await scan({ targets: [SECURE_PATH], useSlither: false, useLLM: false });
+    const result = await scan({ targets: [SECURE_PATH], useSlither: false, useLLM: false, useMetrics: false });
     const findings = result.files.flatMap((f) => f.findings);
     const overflow = findings.filter((f) => f.id === "CP-101");
     expect(overflow).toHaveLength(0);
   });
 
   it("does not flag CP-115 tx.origin in SecureVault.sol", async () => {
-    const result = await scan({ targets: [SECURE_PATH], useSlither: false, useLLM: false });
+    const result = await scan({ targets: [SECURE_PATH], useSlither: false, useLLM: false, useMetrics: false });
     const findings = result.files.flatMap((f) => f.findings);
     const txOrigin = findings.filter((f) => f.id === "CP-115");
     expect(txOrigin).toHaveLength(0);
   });
 
   it("summary counts are consistent with individual file findings", async () => {
-    const result = await scan({ targets: [VAULT_PATH], useSlither: false, useLLM: false });
+    const result = await scan({ targets: [VAULT_PATH], useSlither: false, useLLM: false, useMetrics: false });
     const allFindings = result.files.flatMap((f) => f.findings);
     const allGas = result.files.flatMap((f) => f.gasHints);
     expect(result.summary.critical).toBe(allFindings.filter((f) => f.severity === "critical").length);
@@ -96,6 +96,7 @@ describe("scan() — integration", () => {
       targets: ["/tmp/nonexistent-chainproof-test-123.sol"],
       useSlither: false,
       useLLM: false,
+      useMetrics: false,
     });
     expect(result.files).toHaveLength(0);
     expect(result.summary.total).toBe(0);
@@ -106,6 +107,7 @@ describe("scan() — integration", () => {
       targets: [VAULT_PATH],
       useSlither: false,
       useLLM: false,
+      useMetrics: false,
       minSeverity: "critical",
     });
     const allFindings = result.files.flatMap((f) => f.findings);
@@ -116,7 +118,7 @@ describe("scan() — integration", () => {
 
   it("scans a directory containing .sol files", async () => {
     const dir = path.resolve(__dirname, "../../../../examples/contracts");
-    const result = await scan({ targets: [dir], useSlither: false, useLLM: false });
+    const result = await scan({ targets: [dir], useSlither: false, useLLM: false, useMetrics: false });
     expect(result.files.length).toBeGreaterThan(0);
   });
 });
