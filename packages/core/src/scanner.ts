@@ -1,15 +1,11 @@
 import * as fs from "fs";
 import * as path from "path";
 import { parseSolidity } from "./ast/parser";
-import {
-  buildImportGraph,
-  buildMergedContractViews,
-  hasImportDirectives,
-} from "./ast/import-graph";
 import { runSlither, isSlitherAvailable } from "./ast/slither";
 import { detectReentrancy } from "./rules/swc107-reentrancy";
 import { detectCrossFunctionReentrancy } from "./rules/swc107-reentrancy-v2";
 import { detectTxOrigin } from "./rules/swc115-tx-origin";
+import { detectUnprotectedUpgrade } from "./rules/swc116-unprotected-upgrade";
 import {
   detectIntegerOverflow,
   detectUncheckedReturn,
@@ -17,7 +13,7 @@ import {
 import { detectUnprotectedUpgrade } from "./rules/swc116-unprotected-upgrade";
 import { detectGasIssues } from "./rules/gas-optimizer";
 import { enhanceFindingsWithLLM } from "./llm/enhancer";
-import { loadPlugins } from "./plugins";
+import { analyzeContract } from "./metrics/complexity";
 import type {
   ScanConfig,
   ScanResult,
@@ -119,7 +115,7 @@ function runRulesOnFile(
 
 async function scanFileLegacy(
   filePath: string,
-  config: ScanConfig,
+  config: ScanConfig
 ): Promise<FileScanResult> {
   let source: string;
   try {
@@ -146,25 +142,24 @@ async function scanFileLegacy(
     };
   }
 
-  // ── AST-based rules ────────────────────────────────────────────────────────
   let findings: Finding[] = [
     ...detectReentrancy(ast, source, filePath),
     ...detectTxOrigin(ast, source, filePath),
+    ...detectUnprotectedUpgrade(ast, source, filePath),
     ...detectIntegerOverflow(ast, source, filePath),
     ...detectUncheckedReturn(ast, source, filePath),
   ];
 
-  // ── Plugin rules ───────────────────────────────────────────────────────────
   if (config.plugins) {
     for (const plugin of config.plugins) {
       for (const rule of plugin.rules) {
         try {
           findings.push(...rule.detect(ast, source, filePath));
-        } catch (error) {
+        } catch (pluginError) {
           console.warn(
             `[ChainProof] Plugin "${plugin.name}" rule "${rule.id}" failed: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
+              pluginError instanceof Error ? pluginError.message : String(pluginError)
+            }`
           );
         }
       }
@@ -190,16 +185,12 @@ async function scanFileLegacy(
   }
 
   if (config.useLLM && config.apiKey && findings.length > 0) {
-    findings = await enhanceFindingsWithLLM(findings, source, config.apiKey);
+    findings = await enhanceFindingsWithLLM(findings, source, config);
   }
-
 
   return { file: filePath, findings, gasHints, slitherRan };
 }
 
-/**
- * Extract high-complexity functions as info-severity findings.
- */
 function generateComplexityFindings(
   metrics: ContractMetrics[],
   source: string,
@@ -209,12 +200,13 @@ function generateComplexityFindings(
 
   for (const m of metrics) {
     for (const fn of m.highComplexityFunctions) {
-      // Find approximate line in source for the function name
       const lines = source.split("\n");
       let line = 0;
       for (let i = 0; i < lines.length; i++) {
-        if (lines[i].includes(`function ${fn.name}`) || 
-            lines[i].includes(`function ${fn.name}(`)) {
+        if (
+          lines[i].includes(`function ${fn.name}`) ||
+          lines[i].includes(`function ${fn.name}(`)
+        ) {
           line = i + 1;
           break;
         }
@@ -240,12 +232,7 @@ function generateComplexityFindings(
   return findings;
 }
 
-/**
- * Generate ContractMetrics for a file's parsed AST.
- */
-function computeMetricsForFile(
-  filePath: string
-): ContractMetrics[] {
+function computeMetricsForFile(filePath: string): ContractMetrics[] {
   const source = fs.readFileSync(filePath, "utf-8");
   const { ast } = parseSolidity(source, filePath);
   if (!ast) return [];
@@ -261,8 +248,12 @@ function computeMetricsForFile(
     avgCyclomaticComplexity:
       ar.functionMetrics.length > 0
         ? Math.round(
-            (ar.functionMetrics.reduce((sum, fm) => sum + fm.cyclomaticComplexity, 0) /
-              ar.functionMetrics.length) * 100
+            (ar.functionMetrics.reduce(
+              (sum, fm) => sum + fm.cyclomaticComplexity,
+              0
+            ) /
+              ar.functionMetrics.length) *
+              100
           ) / 100
         : 0,
     highComplexityFunctions: ar.highComplexityFunctions,
@@ -274,10 +265,37 @@ function computeMetricsForFile(
 }
 
 export async function scan(config: ScanConfig): Promise<ScanResult> {
-  const initialFiles = collectSolFiles(config.targets);
-  const files = initialFiles.length > 0 ? expandWithImports(initialFiles) : initialFiles;
+  const files = collectSolFiles(config.targets);
 
   const fileResults = await Promise.all(files.map((f) => scanFile(f, config)));
+
+  let allMetrics: ContractMetrics[] = [];
+  const complexityFindings: Finding[] = [];
+
+  if (config.useMetrics) {
+    for (const filePath of files) {
+      const metrics = computeMetricsForFile(filePath);
+      allMetrics.push(...metrics);
+
+      if (metrics.length > 0) {
+        try {
+          const source = fs.readFileSync(filePath, "utf-8");
+          complexityFindings.push(
+            ...generateComplexityFindings(metrics, source, filePath)
+          );
+        } catch {
+          // Skip unreadable files
+        }
+      }
+    }
+  }
+
+  if (complexityFindings.length > 0 && fileResults.length > 0) {
+    const targetFile = fileResults.find((f) => !f.parseError);
+    if (targetFile) {
+      targetFile.findings.push(...complexityFindings);
+    }
+  }
 
   const summary = {
     critical: 0,
