@@ -1,5 +1,6 @@
 import * as parser from "@solidity-parser/parser";
 import type { ASTNode } from "../types";
+import { astCache, ASTCache } from "./cache";
 
 export interface ParseResult {
   ast: ASTNode | null;
@@ -8,15 +9,23 @@ export interface ParseResult {
 
 /**
  * Parse a Solidity source file into an AST.
+ * Returns a cached AST when the file content is unchanged (SHA-256 match).
  * Returns { ast: null, error } on failure instead of throwing.
  */
 export function parseSolidity(source: string, filePath: string): ParseResult {
+  const hash = ASTCache.hashContent(source);
+  const cached = astCache.get(hash);
+  if (cached) {
+    return { ast: cached.ast };
+  }
+
   try {
     const ast = parser.parse(source, {
       loc: true,
       range: true,
       tolerant: true,
     });
+    astCache.set(hash, { contentHash: hash, ast, parsedAt: Date.now(), filePath });
     return { ast };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

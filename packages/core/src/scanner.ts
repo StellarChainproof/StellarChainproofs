@@ -3,12 +3,14 @@ import * as path from "path";
 import { parseSolidity } from "./ast/parser";
 import { runSlither, isSlitherAvailable } from "./ast/slither";
 import { detectReentrancy } from "./rules/swc107-reentrancy";
+import { detectCrossFunctionReentrancy } from "./rules/swc107-reentrancy-v2";
 import { detectTxOrigin } from "./rules/swc115-tx-origin";
 import { detectUnprotectedUpgrade } from "./rules/swc116-unprotected-upgrade";
 import {
   detectIntegerOverflow,
   detectUncheckedReturn,
 } from "./rules/swc101-overflow";
+import { detectUnprotectedUpgrade } from "./rules/swc116-unprotected-upgrade";
 import { detectGasIssues } from "./rules/gas-optimizer";
 import { enhanceFindingsWithLLM } from "./llm/enhancer";
 import { analyzeContract } from "./metrics/complexity";
@@ -51,7 +53,67 @@ function collectSolFiles(targets: string[]): string[] {
   return [...new Set(files)];
 }
 
-async function scanFile(
+/**
+ * Expand the file list to include locally resolvable imports.
+ */
+function expandWithImports(initialFiles: string[]): string[] {
+  const discovered = new Set(initialFiles.map((f) => path.resolve(f)));
+  const queue = [...discovered];
+
+  while (queue.length > 0) {
+    const absolutePath = queue.shift()!;
+    if (!fs.existsSync(absolutePath)) continue;
+
+    let source: string;
+    try {
+      source = fs.readFileSync(absolutePath, "utf-8");
+    } catch {
+      continue;
+    }
+
+    const { ast } = parseSolidity(source, absolutePath);
+    if (!ast) continue;
+
+    const partialGraph = buildImportGraph([absolutePath]);
+    for (const imported of partialGraph.edges.get(absolutePath) ?? []) {
+      if (!discovered.has(imported) && fs.existsSync(imported)) {
+        discovered.add(imported);
+        queue.push(imported);
+      }
+    }
+  }
+
+  return [...discovered];
+}
+
+function runRulesOnView(
+  view: ReturnType<typeof buildMergedContractViews>[number],
+  config: ScanConfig
+): Finding[] {
+  const ruleOptions = { contractView: view };
+  return [
+    ...detectReentrancy(view.node, view.source, view.file, ruleOptions),
+    ...detectCrossFunctionReentrancy(view.node, view.source, view.file, ruleOptions),
+    ...detectTxOrigin(view.node, view.source, view.file, ruleOptions),
+    ...detectUnprotectedUpgrade(view.node, view.source, view.file, ruleOptions),
+  ];
+}
+
+function runRulesOnFile(
+  ast: NonNullable<ReturnType<typeof parseSolidity>["ast"]>,
+  source: string,
+  filePath: string
+): Finding[] {
+  return [
+    ...detectReentrancy(ast, source, filePath),
+    ...detectTxOrigin(ast, source, filePath),
+    ...detectUnprotectedUpgrade(ast, source, filePath),
+    ...detectIntegerOverflow(ast, source, filePath),
+    ...detectUncheckedReturn(ast, source, filePath),
+  ];
+}
+
+async function scanFileLegacy(
   filePath: string,
   config: ScanConfig
 ): Promise<FileScanResult> {
