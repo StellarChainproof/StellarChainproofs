@@ -7,8 +7,18 @@
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["Linters", "Other"],
-  "keywords": ["solidity", "ethereum", "security", "audit", "web3", "smart-contracts"],
+  "categories": [
+    "Linters",
+    "Other"
+  ],
+  "keywords": [
+    "solidity",
+    "ethereum",
+    "security",
+    "audit",
+    "web3",
+    "smart-contracts"
+  ],
   "icon": "icon.png",
   "activationEvents": [
     "onLanguage:solidity"
@@ -79,7 +89,13 @@
         },
         "chainproof.minSeverity": {
           "type": "string",
-          "enum": ["critical", "high", "medium", "low", "info"],
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low",
+            "info"
+          ],
           "default": "low",
           "description": "Minimum severity level to display"
         }
@@ -101,11 +117,12 @@
     "package": "vsce package"
   },
   "dependencies": {
-    "@chainproof/core": "*"
+    "@chainproof/core": "*",
+    "vscode-languageclient": "^9.0.1"
   },
   "devDependencies": {
-    "@types/vscode": "^1.85.0",
     "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
     "@vscode/vsce": "^2.24.0"
   }
 }
