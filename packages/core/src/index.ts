@@ -209,6 +209,14 @@ export type {
   StakingSourceLocation,
   ValidatedStakingConfig,
 } from "./staking";
+
+// ─── Auth, Queue, Isolation, Quota, Audit ────────────────────────────────────
+export * from "./auth";
+export * from "./queue";
+export * from "./isolation";
+export * from "./quota";
+export * from "./audit";
+
 export type {
   ParseSpecResult,
   MigrationResult,
