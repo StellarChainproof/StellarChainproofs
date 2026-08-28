@@ -1,0 +1,68 @@
+{
+  "schemaVersion": "1.0.0",
+  "corpusName": "ChainProof Official Benchmark Corpus",
+  "description": "Comprehensive benchmark corpus containing vulnerable, fixed, ambiguous, multi-file, generated, and real-world fixtures with provenance metadata",
+  "cases": [
+    {
+      "id": "BENCH-VULN-001",
+      "name": "Classic Reentrancy & Tx Origin Vulnerability Vault",
+      "category": "vulnerable",
+      "targets": ["contracts/VulnerableVaultBench.sol"],
+      "expectedFindings": [
+        {
+          "ruleId": "CP-107",
+          "severity": "critical",
+          "line": 19,
+          "lineTolerance": 5,
+          "snippet": "balances",
+          "confidence": "high"
+        },
+        {
+          "ruleId": "CP-115",
+          "severity": "high",
+          "line": 24,
+          "lineTolerance": 5,
+          "snippet": "tx.origin",
+          "confidence": "high"
+        }
+      ],
+      "provenance": {
+        "author": "ChainProof Security Team",
+        "license": "MIT",
+        "notes": "Standard vulnerable vault target testing CP-107 and CP-115 detectors"
+      }
+    },
+    {
+      "id": "BENCH-FIXED-001",
+      "name": "Patched CEI Vault Reference Implementation",
+      "category": "fixed",
+      "targets": ["contracts/SecureVaultBench.sol"],
+      "expectedFindings": [],
+      "provenance": {
+        "author": "ChainProof Security Team",
+        "license": "MIT",
+        "notes": "Clean reference vault that should produce 0 security findings"
+      }
+    },
+    {
+      "id": "BENCH-AMBIG-001",
+      "name": "Ambiguous Receiver Hook Target",
+      "category": "ambiguous",
+      "targets": ["contracts/AmbiguousBench.sol"],
+      "expectedFindings": [
+        {
+          "ruleId": "CP-107",
+          "severity": "critical",
+          "line": 11,
+          "lineTolerance": 5,
+          "allowedFalsePositive": true,
+          "fpCategory": "ambiguous-ast"
+        }
+      ],
+      "provenance": {
+        "author": "ChainProof Security Team",
+        "license": "MIT"
+      }
+    }
+  ]
+}

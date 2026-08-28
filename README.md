@@ -14,6 +14,7 @@
 - [CLI Reference](#cli-reference)
 - [Invariant DSL](#invariant-dsl)
 - [Staking Accounting](#staking-accounting)
+- [Detector Benchmark & Regression Framework](#detector-benchmark--regression-framework)
 - [VS Code Extension](#vs-code-extension)
 - [GitHub Action](#github-action)
 - [Vulnerability Rules](#vulnerability-rules)
@@ -218,6 +219,19 @@ chainproof scan contracts/ --min-severity high --no-slither
 
 When using the default `table` format without `--output`, a full Markdown report is also saved to `chainproof-report.md`.
 
+### `chainproof benchmark`
+
+Run versioned detector benchmarks, evaluate regression gates, validate corpus manifests, and scaffold new manifests:
+
+```bash
+chainproof benchmark run examples/benchmark-corpus/corpus.manifest.json
+chainproof benchmark compare baseline.json candidate.json --max-prec-drop 0.02
+chainproof benchmark validate corpus.manifest.json
+chainproof benchmark init corpus.manifest.json
+```
+
+See [Detector Benchmark & Regression Framework](#detector-benchmark--regression-framework) for details.
+
 ### `chainproof check`
 
 Fast pass/fail check for CI. Only reports critical and high findings. LLM is always disabled.
@@ -323,6 +337,19 @@ does not estimate investment yield. See
 [the staking accounting guide](docs/staking-accounting.md) for APIs, rules,
 configuration migration, threat model, resource limits, compatibility, fixture
 coverage, rule-author guidance, and troubleshooting.
+
+---
+
+## Detector Benchmark & Regression Framework
+
+Run versioned benchmark evaluations against standardized detector corpus manifests, measuring precision, recall, F1/F2/F0.5 scores, per-rule coverage, runtime latency, and peak memory, while enforcing precision regression gates:
+
+```bash
+chainproof benchmark run examples/benchmark-corpus/corpus.manifest.json --format markdown --output benchmark-report.md
+chainproof benchmark compare baseline.json candidate.json --min-precision 0.85 --max-prec-drop 0.02
+```
+
+See **[docs/benchmark-framework.md](docs/benchmark-framework.md)** for full details on corpus manifest schemas, assertions, fixture mutations, sharding, deterministic sampling, and CI comparison gates.
 
 ---
 
