@@ -28,6 +28,7 @@ import type { ScanConfig, ScanResult } from "@chainproof/core";
 import type { ServerOptions } from "@chainproof/server";
 import { registerWatchCommand } from "./commands/watch";
 import { registerInvariantsCommand } from "./commands/invariants";
+import { registerCICommands } from "./commands/ci";
 
 // ─── ASCII Banner ─────────────────────────────────────────────────────────────
 
@@ -627,5 +628,6 @@ program
 
 registerWatchCommand(program, printBanner);
 registerInvariantsCommand(program, printBanner);
+registerCICommands(program, printBanner);
 
 program.parse();
