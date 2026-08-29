@@ -212,6 +212,9 @@ export type {
 
 // ─── Governance / timelock safety analysis ──────────────────────────────────
 export * from "./governance";
+
+// ─── External call return-value and returndata safety analysis ───────────────
+export * from "./returndata";
 export type {
   ParseSpecResult,
   MigrationResult,
