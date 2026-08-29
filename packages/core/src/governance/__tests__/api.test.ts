@@ -26,7 +26,7 @@ describe("governance analysis API", () => {
     ]);
     expect(serializeGovernanceReport(first)).toBe(serializeGovernanceReport(second));
     expect(first.files.map((file) => file.file)).toEqual(["a.sol", "z.sol"]);
-    expect(serializeGovernanceReport(first)).toMatch(/^\{\n  "engineVersion"/);
+    expect(serializeGovernanceReport(first)).toMatch(/^\{\n {2}"engineVersion"/);
   });
 
   it("produces a versioned Markdown artifact with evidence and scope", () => {

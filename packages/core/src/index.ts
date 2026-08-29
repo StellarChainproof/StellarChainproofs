@@ -239,3 +239,83 @@ export type {
   SourceRange,
   SourcePosition,
 } from "./dsl";
+
+// ─── Fork-aware Concrete Validation ──────────────────────────────────────────
+export {
+  // Types / constants
+  DEFAULT_RESOURCE_LIMITS,
+  VALIDATION_SCHEMA_VERSION,
+  // Errors
+  ValidationError,
+  ValidationTimeoutError,
+  AdapterCrashError,
+  ForkUnavailableError,
+  CorruptBundleError,
+  ScenarioValidationError,
+  // Cancellation
+  createCancellationSignal,
+  resolveResourceLimits,
+  sanitizeErrorMessage,
+  // Adapter utilities
+  jsonRpcCall,
+  waitForRpc,
+  encodeFunctionCall,
+  keccak256Selector,
+  keccak256Pure,
+  decodeLogEntries,
+  hexToDecimalString,
+  normalizeHex,
+  // Concrete adapters
+  AnvilAdapter,
+  isAnvilAvailable,
+  HardhatAdapter,
+  isHardhatAvailable,
+  // Scaffold / planning
+  planValidation,
+  serializeValidationPlan,
+  parseValidationPlan,
+  // Runner
+  ValidationRunner,
+  minimizeScenario,
+  runValidationPlan,
+  sanitizeScenario,
+  // Reports
+  serializeValidationReport,
+  serializeValidationResult,
+  generateValidationMarkdown,
+  generateValidationResultMarkdown,
+  parseValidationReport,
+} from "./validation";
+
+export type {
+  AccountSpec,
+  AdapterOptions,
+  AdapterType,
+  BalanceAssertion,
+  BalanceAssertionResult,
+  CallResult,
+  CallSpec,
+  ChainContext,
+  ContractSpec,
+  EventAssertion,
+  EventAssertionResult,
+  EvmAdapter,
+  LogEntry,
+  MinimizationResult,
+  MinimizerOptions,
+  PlanValidationOptions,
+  ResolvedResourceLimits,
+  RunnerOptions,
+  RunValidationOptions,
+  ScenarioResourceLimits,
+  SnapshotEntry,
+  StorageAssertion,
+  StorageAssertionResult,
+  StorageDiff,
+  UnsupportedFinding,
+  ValidationCancellationSignal,
+  ValidationPlan,
+  ValidationReport,
+  ValidationResult,
+  ValidationScenario,
+} from "./validation";

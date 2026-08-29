@@ -47,6 +47,10 @@
       {
         "command": "chainproof.explainVulnerability",
         "title": "ChainProof: Explain Vulnerability with AI"
+      },
+      {
+        "command": "chainproof.planValidation",
+        "title": "ChainProof: Plan Validation (Generate Reproduction Scaffolds)"
       }
     ],
     "configuration": {

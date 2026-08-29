@@ -6,6 +6,7 @@ import rateLimit from "express-rate-limit";
 import healthRouter from "./routes/health";
 import scanRouter from "./routes/scan";
 import rulesRouter from "./routes/rules";
+import validateRouter from "./routes/validate";
 
 // ─── Configuration (can be overridden by env vars or programmatic start) ──────
 
@@ -70,6 +71,7 @@ export function createApp(opts: ServerOptions = {}): express.Application {
   app.use("/health", healthRouter);
   app.use("/scan", scanRouter);
   app.use("/rules", rulesRouter);
+  app.use("/validate", validateRouter);
 
   // ── 404 handler ──────────────────────────────────────────────────────────
   app.use((_req, res) => {
@@ -97,6 +99,9 @@ export async function startServer(opts: ServerOptions = {}): Promise<void> {
     app.listen(port, host, () => {
       console.log(`\n  🚀 ChainProof server running at http://${host}:${port}`);
       console.log(`  POST http://${host}:${port}/scan`);
+      console.log(`  POST http://${host}:${port}/validate/plan`);
+      console.log(`  POST http://${host}:${port}/validate/run`);
+      console.log(`  POST http://${host}:${port}/validate/report`);
       console.log(`  GET  http://${host}:${port}/health`);
       console.log(`  GET  http://${host}:${port}/rules`);
       if (opts.token) {
