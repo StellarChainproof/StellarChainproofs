@@ -212,6 +212,9 @@ export type {
 
 // ─── Governance / timelock safety analysis ──────────────────────────────────
 export * from "./governance";
+
+// ─── Cross-chain bridge and message verification analysis ───────────────────
+export * from "./bridge";
 export type {
   ParseSpecResult,
   MigrationResult,

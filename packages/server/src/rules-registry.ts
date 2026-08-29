@@ -153,6 +153,15 @@ export const RULES: RuleMeta[] = [
       "constant bytes32 to save ~30 gas per call.",
   },
   {
+    id: "CP-BRG-001",
+    title: "Missing source chain binding on inbound messages",
+    severity: "critical",
+    category: "security",
+    description:
+      "Detects cross-chain bridge receivers that execute messages without binding authorization " +
+      "to a source chain ID or authenticated bridge endpoint.",
+  },
+  {
     id: "GAS-SMALL-UINT",
     title: "Small integer type in storage",
     severity: "gas",
