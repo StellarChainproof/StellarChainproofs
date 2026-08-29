@@ -29,6 +29,8 @@ import {
 import { detectVaultInflation } from "./rules/cp122-vault-inflation";
 import { detectCallbackReentrancy } from "./rules/callback-analysis";
 import { detectStakingAccounting } from "./staking";
+import { detectGovernanceSafety } from "./governance";
+import { detectBridgeSafety } from "./bridge";
 import { RuleOptions } from "./rules/rule-context";
 import { detectGasIssues } from "./rules/gas-optimizer";
 import { enhanceFindingsWithLLM } from "./llm/enhancer";
@@ -178,6 +180,13 @@ async function scanFile(
   // file. Its model already separates contracts, so running it per merged
   // inheritance view would duplicate evidence and findings.
   findings.push(...detectStakingAccounting(ast, source, filePath));
+
+  // The governance engine models all contracts in a physical file together. Run it once
+  // here rather than once per merged inheritance view, which would duplicate findings.
+  findings.push(...detectGovernanceSafety(ast, source, filePath));
+
+  // Bridge analysis runs once per physical file, similar to governance and staking.
+  findings.push(...detectBridgeSafety(ast, source, filePath));
 
   if (config.plugins) {
     for (const plugin of config.plugins) {
