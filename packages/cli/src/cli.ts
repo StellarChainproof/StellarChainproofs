@@ -30,7 +30,7 @@ import { registerWatchCommand } from "./commands/watch";
 import { registerInvariantsCommand } from "./commands/invariants";
 import { registerStakingCommand } from "./commands/staking";
 import { registerGovernanceCommand } from "./commands/governance";
-import { registerReturndataCommand } from "./commands/returndata";
+import { registerBridgeCommand } from "./commands/bridge";
 
 // ─── ASCII Banner ─────────────────────────────────────────────────────────────
 
@@ -632,6 +632,6 @@ registerWatchCommand(program, printBanner);
 registerInvariantsCommand(program, printBanner);
 registerStakingCommand(program);
 registerGovernanceCommand(program, printBanner);
-registerReturndataCommand(program, printBanner);
+registerBridgeCommand(program, printBanner);
 
 program.parse();

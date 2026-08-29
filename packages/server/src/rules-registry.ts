@@ -160,6 +160,13 @@ export const RULES: RuleMeta[] = [
     description:
       "Detects .call(), .send(), .delegatecall(), and .staticcall() invocations whose success " +
       "boolean is not captured or checked, allowing silent failure.",
+    id: "CP-BRG-001",
+    title: "Missing source chain binding on inbound messages",
+    severity: "critical",
+    category: "security",
+    description:
+      "Detects cross-chain bridge receivers that execute messages without binding authorization " +
+      "to a source chain ID or authenticated bridge endpoint.",
   },
   {
     id: "GAS-SMALL-UINT",

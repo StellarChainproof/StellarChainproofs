@@ -30,7 +30,7 @@ import { detectVaultInflation } from "./rules/cp122-vault-inflation";
 import { detectCallbackReentrancy } from "./rules/callback-analysis";
 import { detectStakingAccounting } from "./staking";
 import { detectGovernanceSafety } from "./governance";
-import { detectReturndataSafety } from "./returndata";
+import { detectBridgeSafety } from "./bridge";
 import { RuleOptions } from "./rules/rule-context";
 import { detectGasIssues } from "./rules/gas-optimizer";
 import { enhanceFindingsWithLLM } from "./llm/enhancer";
@@ -185,8 +185,8 @@ async function scanFile(
   // here rather than once per merged inheritance view, which would duplicate findings.
   findings.push(...detectGovernanceSafety(ast, source, filePath));
 
-  // Returndata safety analysis runs once per physical file.
-  findings.push(...detectReturndataSafety(ast, source, filePath));
+  // Bridge analysis runs once per physical file, similar to governance and staking.
+  findings.push(...detectBridgeSafety(ast, source, filePath));
 
   if (config.plugins) {
     for (const plugin of config.plugins) {
