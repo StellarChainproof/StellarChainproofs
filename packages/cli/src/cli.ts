@@ -31,6 +31,7 @@ import { registerInvariantsCommand } from "./commands/invariants";
 import { registerStakingCommand } from "./commands/staking";
 import { registerGovernanceCommand } from "./commands/governance";
 import { registerBridgeCommand } from "./commands/bridge";
+import { registerCompilerCommand } from "./commands/compiler";
 
 // ─── ASCII Banner ─────────────────────────────────────────────────────────────
 
@@ -633,5 +634,6 @@ registerInvariantsCommand(program, printBanner);
 registerStakingCommand(program);
 registerGovernanceCommand(program, printBanner);
 registerBridgeCommand(program, printBanner);
+registerCompilerCommand(program, printBanner);
 
 program.parse();
