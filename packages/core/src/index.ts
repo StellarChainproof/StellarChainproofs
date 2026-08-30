@@ -215,6 +215,9 @@ export * from "./governance";
 
 // ─── Cross-chain bridge and message verification analysis ───────────────────
 export * from "./bridge";
+
+// ─── Denial-of-Service, Gas-Griefing & Unbounded-Work Analysis ─────────────
+export * from "./dos";
 export type {
   ParseSpecResult,
   MigrationResult,
