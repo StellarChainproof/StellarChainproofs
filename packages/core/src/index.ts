@@ -218,6 +218,7 @@ export * from "./bridge";
 
 // ─── Denial-of-Service, Gas-Griefing & Unbounded-Work Analysis ─────────────
 export * from "./dos";
+export * from "./lending";
 export type {
   ParseSpecResult,
   MigrationResult,
