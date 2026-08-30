@@ -1,5 +1,5 @@
 import * as http from "http";
-import { createApp } from "../../../../server/src/server";
+import { createApp } from "@chainproof/server";
 
 describe("Server /compiler Routes", () => {
   let server: http.Server;
