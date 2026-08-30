@@ -153,6 +153,13 @@ export const RULES: RuleMeta[] = [
       "constant bytes32 to save ~30 gas per call.",
   },
   {
+    id: "CP-RTD-001",
+    title: "Ignored external call success flag",
+    severity: "high",
+    category: "security",
+    description:
+      "Detects .call(), .send(), .delegatecall(), and .staticcall() invocations whose success " +
+      "boolean is not captured or checked, allowing silent failure.",
     id: "CP-BRG-001",
     title: "Missing source chain binding on inbound messages",
     severity: "critical",
