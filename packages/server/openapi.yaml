@@ -412,6 +412,96 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+    /compiler/inspect:
+      post:
+        tags: [Compiler]
+        summary: Inspect Solidity pragmas across sources and resolve version compatibility
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [files]
+                properties:
+                  files:
+                    type: array
+                    items:
+                      type: object
+                      required: [content]
+                      properties:
+                        file:
+                          type: string
+                        content:
+                          type: string
+        responses:
+          "200":
+            description: Pragma resolution results
+          "400":
+            description: Invalid request body
+
+    /compiler/matrix:
+      post:
+        tags: [Compiler]
+        summary: Evaluate compatibility matrix across compiler versions
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [files]
+                properties:
+                  files:
+                    type: array
+                  versions:
+                    type: array
+                    items:
+                      type: string
+        responses:
+          "200":
+            description: Compiler matrix grid
+
+    /compiler/compare:
+      post:
+        tags: [Compiler]
+        summary: Compare contract artifacts across two compiler versions
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [files, versions]
+                properties:
+                  files:
+                    type: array
+                  versions:
+                    type: array
+                    items:
+                      type: string
+        responses:
+          "200":
+            description: Version comparison results
+
+    /compiler/audit:
+      post:
+        tags: [Compiler]
+        summary: Perform complete compiler compatibility and diagnostic audit
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [files]
+                properties:
+                  files:
+                    type: array
+        responses:
+          "200":
+            description: Compiler audit report
+
 tags:
   - name: System
     description: Health and liveness endpoints
@@ -419,3 +509,6 @@ tags:
     description: Smart contract scanning endpoints
   - name: Rules
     description: Rule metadata endpoints
+  - name: Compiler
+    description: Multi-compiler compatibility and diagnostic matrix endpoints
+
