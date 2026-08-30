@@ -6,7 +6,7 @@ import rateLimit from "express-rate-limit";
 import healthRouter from "./routes/health";
 import scanRouter from "./routes/scan";
 import rulesRouter from "./routes/rules";
-import compilerRouter from "./routes/compiler";
+import dosRouter from "./routes/dos";
 
 // ─── Configuration (can be overridden by env vars or programmatic start) ──────
 
@@ -71,7 +71,7 @@ export function createApp(opts: ServerOptions = {}): express.Application {
   app.use("/health", healthRouter);
   app.use("/scan", scanRouter);
   app.use("/rules", rulesRouter);
-  app.use("/compiler", compilerRouter);
+  app.use("/dos", dosRouter);
 
   // ── 404 handler ──────────────────────────────────────────────────────────
   app.use((_req, res) => {

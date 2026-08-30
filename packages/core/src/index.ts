@@ -216,8 +216,8 @@ export * from "./governance";
 // ─── Cross-chain bridge and message verification analysis ───────────────────
 export * from "./bridge";
 
-// ─── Multi-compiler Solidity compatibility & diagnostic matrix ─────────────
-export * from "./compiler";
+// ─── Denial-of-Service, Gas-Griefing & Unbounded-Work Analysis ─────────────
+export * from "./dos";
 export type {
   ParseSpecResult,
   MigrationResult,
