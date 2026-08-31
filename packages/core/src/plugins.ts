@@ -61,6 +61,7 @@ export function loadPlugin(
     }
 
     // Load and validate the plugin
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const plugin = require(modulePath);
     const loaded = plugin.default || plugin;
 

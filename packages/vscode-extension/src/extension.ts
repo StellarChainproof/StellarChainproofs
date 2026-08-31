@@ -10,6 +10,8 @@ import {
   clearCache,
   astCache,
   enhanceFindingsWithLLM,
+  planValidation,
+  serializeValidationPlan,
 } from "@chainproof/core";
 import type { Finding, GasHint, ScanConfig, ASTCacheEntry } from "@chainproof/core";
 
@@ -124,6 +126,12 @@ export function activate(context: vscode.ExtensionContext) {
       "chainproof.explainVulnerability",
       async (uri: vscode.Uri, finding: Finding) => {
         await explainVulnerability(uri, finding);
+      }
+    ),
+    vscode.commands.registerCommand(
+      "chainproof.planValidation",
+      async (uri?: vscode.Uri) => {
+        await planValidationForFindings(uri);
       }
     ),
     diagnosticCollection,
@@ -945,6 +953,99 @@ function renderMarkdown(text: string): string {
 }
 
 let _extensionContext: vscode.ExtensionContext | undefined;
+
+// ─── Plan Validation ──────────────────────────────────────────────────────────
+
+/**
+ * Build a `ValidationPlan` from the static findings of the active (or given)
+ * Solidity file and write it to a `.chainproof-validation-plan.json` file in
+ * the workspace root.
+ *
+ * The plan can then be executed with:
+ *   `chainproof validate run .chainproof-validation-plan.json`
+ *
+ * No adapter process is spawned here — this is a pure static planning step.
+ */
+async function planValidationForFindings(uri?: vscode.Uri): Promise<void> {
+  // Resolve target file
+  const targetUri =
+    uri ??
+    vscode.window.activeTextEditor?.document.uri;
+
+  if (!targetUri || !targetUri.fsPath.endsWith(".sol")) {
+    vscode.window.showWarningMessage(
+      "ChainProof: Open a Solidity file first to plan validation.",
+    );
+    return;
+  }
+
+  const filePath = targetUri.fsPath;
+
+  // Collect findings for this file from the cache populated by the last scan
+  const findings = lastScanFindings.get(filePath) ?? [];
+  if (findings.length === 0) {
+    vscode.window.showInformationMessage(
+      "ChainProof: No findings for this file. Run a scan first (ChainProof: Scan Current File).",
+    );
+    return;
+  }
+
+  // Build the validation plan
+  const plan = planValidation(findings, { minSeverity: "low" });
+
+  if (plan.scenarios.length === 0) {
+    const unsupported = plan.unsupportedFindings.length;
+    vscode.window.showInformationMessage(
+      `ChainProof: No validation scenarios could be generated from the ${findings.length} finding(s). ` +
+        `${unsupported} finding(s) use unsupported rule IDs.`,
+    );
+    return;
+  }
+
+  // Write the plan to the workspace root
+  const workspaceRoot =
+    vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (!workspaceRoot) {
+    vscode.window.showErrorMessage(
+      "ChainProof: No workspace folder open. Cannot write validation plan.",
+    );
+    return;
+  }
+
+  const outPath = path.join(workspaceRoot, ".chainproof-validation-plan.json");
+  try {
+    fs.writeFileSync(outPath, serializeValidationPlan(plan), "utf-8");
+  } catch (writeErr) {
+    const msg = writeErr instanceof Error ? writeErr.message : String(writeErr);
+    vscode.window.showErrorMessage(
+      `ChainProof: Failed to write validation plan: ${msg}`,
+    );
+    return;
+  }
+
+  outputChannel.appendLine(
+    `[ChainProof] Validation plan written: ${outPath}` +
+      ` (${plan.scenarios.length} scenario(s), ${plan.unsupportedFindings.length} unsupported)`,
+  );
+
+  const action = await vscode.window.showInformationMessage(
+    `ChainProof: Validation plan created — ${plan.scenarios.length} scenario(s) for ` +
+      `${path.basename(filePath)}.` +
+      `\n\nRun with: chainproof validate run .chainproof-validation-plan.json`,
+    "Open Plan",
+    "Copy CLI Command",
+  );
+
+  if (action === "Open Plan") {
+    const doc = await vscode.workspace.openTextDocument(outPath);
+    await vscode.window.showTextDocument(doc, { preview: true });
+  } else if (action === "Copy CLI Command") {
+    await vscode.env.clipboard.writeText(
+      `chainproof validate run .chainproof-validation-plan.json --adapter anvil`,
+    );
+    vscode.window.showInformationMessage("ChainProof: CLI command copied to clipboard.");
+  }
+}
 
 export function deactivate() {
   if (_extensionContext) {

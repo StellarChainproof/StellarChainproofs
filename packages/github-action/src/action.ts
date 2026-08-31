@@ -11,6 +11,11 @@ import {
   generateMarkdownDiffReport,
   clearCache,
   isSlitherAvailable,
+  planValidation,
+  serializeValidationPlan,
+  runValidationPlan,
+  serializeValidationReport,
+  generateValidationMarkdown,
 } from "@chainproof/core";
 import type { ScanConfig, ScanResult, ScanDiff } from "@chainproof/core";
 
@@ -266,6 +271,77 @@ async function run() {
     }
 
     core.setOutput("report-path", mdPath);
+
+    // ── Validation plan (optional) ────────────────────────────────────────────
+    const shouldValidate = core.getInput("validate") === "true";
+    const shouldValidateRun = core.getInput("validate-run") === "true";
+    const validateAdapter = (core.getInput("validate-adapter") || "anvil") as "anvil" | "hardhat";
+
+    if (shouldValidate || shouldValidateRun) {
+      core.info("[ChainProof] Building validation plan from scan findings...");
+
+      // Collect all findings from the scan result
+      const allFindings = result.files.flatMap((f) => f.findings);
+      const plan = planValidation(allFindings, { minSeverity: "low" });
+
+      core.info(
+        `[ChainProof] Validation plan: ${plan.scenarios.length} scenario(s), ` +
+          `${plan.unsupportedFindings.length} unsupported finding(s)`,
+      );
+
+      const planPath = path.join(reportDir, "validation-plan.json");
+      fs.writeFileSync(planPath, serializeValidationPlan(plan), "utf-8");
+      core.setOutput("validate-plan-path", planPath);
+      core.info(`[ChainProof] Validation plan written to ${planPath}`);
+
+      // Optionally run the plan against a local EVM adapter
+      if (shouldValidateRun && plan.scenarios.length > 0) {
+        core.info(
+          `[ChainProof] Running ${plan.scenarios.length} validation scenario(s) with ${validateAdapter}...`,
+        );
+        try {
+          const validationReport = await runValidationPlan(plan.scenarios, {
+            adapterType: validateAdapter,
+            limits: { timeoutMs: 60_000 },
+            verbosity: 0,
+          });
+
+          const vReportPath = path.join(reportDir, "validation-report.json");
+          const vMdPath = path.join(reportDir, "validation-report.md");
+          fs.writeFileSync(vReportPath, serializeValidationReport(validationReport), "utf-8");
+          fs.writeFileSync(vMdPath, generateValidationMarkdown(validationReport), "utf-8");
+          core.setOutput("validate-report-path", vReportPath);
+
+          core.info(
+            `[ChainProof] Validation complete: ${validationReport.passed} passed, ` +
+              `${validationReport.failed} failed, ${validationReport.errored} errored`,
+          );
+
+          // Annotate any scenarios that failed (exploit-succeeds confirmed)
+          for (const vResult of validationReport.results) {
+            if (vResult.outcomeMatched && vResult.scenario.expectedOutcome === "exploit-succeeds") {
+              core.warning(
+                `[ChainProof Validation] Exploit confirmed: ${vResult.scenario.title}` +
+                  ` (${vResult.scenario.findingId ?? "unknown"} @ ` +
+                  `${vResult.scenario.findingFile ?? ""}:${vResult.scenario.findingLine ?? "?"})`,
+                {
+                  file: vResult.scenario.findingFile ?? undefined,
+                  startLine: vResult.scenario.findingLine ?? undefined,
+                  title: "Exploit Scenario Confirmed",
+                },
+              );
+            }
+          }
+        } catch (valErr) {
+          // Validation failures are advisory, not blocking
+          core.warning(
+            `[ChainProof] Validation run encountered an error: ${
+              valErr instanceof Error ? valErr.message : String(valErr)
+            }`,
+          );
+        }
+      }
+    }
 
     // ── Post PR comment ────────────────────────────────────────────────────────
     const token = process.env.GITHUB_TOKEN;

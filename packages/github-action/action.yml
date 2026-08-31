@@ -47,6 +47,21 @@ inputs:
     required: false
     default: ""
 
+  validate:
+    description: "Generate a ValidationPlan from scan findings and upload it as an artifact (true/false)"
+    required: false
+    default: "false"
+
+  validate-adapter:
+    description: "EVM adapter to use when running validation scenarios: anvil|hardhat"
+    required: false
+    default: "anvil"
+
+  validate-run:
+    description: "Execute the generated ValidationPlan against the EVM adapter (true/false). Requires the adapter to be installed on the runner."
+    required: false
+    default: "false"
+
 outputs:
   critical-count:
     description: "Number of critical severity findings"
@@ -60,6 +75,10 @@ outputs:
     description: "Number of resolved findings in diff mode"
   report-path:
     description: "Path to the generated audit report"
+  validate-plan-path:
+    description: "Path to the generated ValidationPlan JSON (when validate: true)"
+  validate-report-path:
+    description: "Path to the ValidationReport JSON (when validate-run: true)"
 
 runs:
   using: "node20"

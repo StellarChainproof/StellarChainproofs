@@ -99,6 +99,9 @@ export async function startServer(opts: ServerOptions = {}): Promise<void> {
     app.listen(port, host, () => {
       console.log(`\n  🚀 ChainProof server running at http://${host}:${port}`);
       console.log(`  POST http://${host}:${port}/scan`);
+      console.log(`  POST http://${host}:${port}/validate/plan`);
+      console.log(`  POST http://${host}:${port}/validate/run`);
+      console.log(`  POST http://${host}:${port}/validate/report`);
       console.log(`  GET  http://${host}:${port}/health`);
       console.log(`  GET  http://${host}:${port}/rules`);
       if (opts.token) {
