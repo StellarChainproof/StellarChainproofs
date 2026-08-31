@@ -28,6 +28,7 @@ import {
 } from "./rules/erc-compliance";
 import { detectVaultInflation } from "./rules/cp122-vault-inflation";
 import { detectCallbackReentrancy } from "./rules/callback-analysis";
+import { detectCrossContractReentrancy } from "./rules/cp121-cross-contract-reentrancy";
 import { detectStakingAccounting } from "./staking";
 import { detectGovernanceSafety } from "./governance";
 import { detectBridgeSafety } from "./bridge";
@@ -332,18 +333,37 @@ export async function scan(config: ScanConfig): Promise<ScanResult> {
   const files = collectSolFiles(config.targets);
   const graph = files.length > 0 ? buildImportGraph(files) : undefined;
   const viewsByFile = new Map<string, MergedContractView[]>();
+  const allViews: MergedContractView[] = [];
 
   if (graph && hasImportDirectives(graph)) {
     for (const view of buildMergedContractViews(graph)) {
       const views = viewsByFile.get(view.file) ?? [];
       views.push(view);
       viewsByFile.set(view.file, views);
+      allViews.push(view);
     }
   }
 
   const fileResults = await Promise.all(
     files.map((f) => scanFile(f, config, graph, viewsByFile.get(path.resolve(f))))
   );
+
+  // CP-121: run cross-contract reentrancy detection once per session over all views.
+  // Findings are attributed to each originating contract's source file.
+  if (allViews.length > 0) {
+    const cp121Findings = detectCrossContractReentrancy(allViews);
+    for (const finding of cp121Findings) {
+      const target = fileResults.find(
+        (r) => path.resolve(r.file) === path.resolve(finding.file)
+      );
+      if (target) {
+        target.findings.push(finding);
+      } else if (fileResults.length > 0) {
+        // Fallback: attach to the first file result if exact file not found
+        fileResults[0].findings.push(finding);
+      }
+    }
+  }
 
   let allMetrics: ContractMetrics[] = [];
   const complexityFindings: Finding[] = [];
