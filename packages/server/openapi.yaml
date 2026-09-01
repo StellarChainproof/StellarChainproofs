@@ -412,6 +412,70 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+    /dos/inspect-loops:
+      post:
+        tags: [DoS]
+        summary: Inspect Solidity loops, termination conditions, and storage array bounds
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [files]
+                properties:
+                  files:
+                    type: array
+                    items:
+                      type: object
+                      required: [content]
+                      properties:
+                        file:
+                          type: string
+                        content:
+                          type: string
+        responses:
+          "200":
+            description: Loop analysis array
+          "400":
+            description: Invalid request body
+
+    /dos/fanout:
+      post:
+        tags: [DoS]
+        summary: Inspect external call fan-out and payment patterns
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [files]
+                properties:
+                  files:
+                    type: array
+        responses:
+          "200":
+            description: Call fan-out analysis array
+
+    /dos/audit:
+      post:
+        tags: [DoS]
+        summary: Run complete Denial-of-Service, gas-griefing, and unbounded-work audit
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [files]
+                properties:
+                  files:
+                    type: array
+        responses:
+          "200":
+            description: DoS audit report
+
 tags:
   - name: System
     description: Health and liveness endpoints
@@ -419,3 +483,6 @@ tags:
     description: Smart contract scanning endpoints
   - name: Rules
     description: Rule metadata endpoints
+  - name: DoS
+    description: Denial-of-Service, gas-griefing, and unbounded-work analysis endpoints
+
