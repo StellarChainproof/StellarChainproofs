@@ -64,6 +64,35 @@ export {
 } from "./config";
 export type { ChainProofConfig } from "./config";
 
+// ─── Language Server Protocol Daemon ─────────────────────────────────────────
+export {
+  ChainProofLspServer,
+  startLspDaemon,
+  DocumentStore,
+  AnalysisService,
+  LspTransportListener,
+  ChainProofCodeActionProvider,
+  ChainProofProviders,
+  ChainProofLspMethods,
+} from "./lsp";
+export type {
+  LspDaemonOptions,
+  TransportType,
+  DiagnosticData,
+  ExtendedLspDiagnostic,
+  LspStatus,
+  ThreatModelRequestParams,
+  ScanReportRequestParams,
+  ScanReportResponse,
+  ClearCacheResponse,
+  OverlayDocument,
+  AnalysisJob,
+  PublishDiagnosticsCallback,
+  WorkDoneProgressCallback,
+  TransportConnection,
+  ConnectionHandler,
+} from "./lsp";
+
 // ─── Public types ─────────────────────────────────────────────────────────────
 
 export type {
