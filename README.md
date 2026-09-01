@@ -553,6 +553,7 @@ See [`.github/workflows/audit.yml`](.github/workflows/audit.yml) for a complete 
 | CP-CB-READONLY | —                                      | Read-only reentrancy via callback | High     | `view` function exposes a value finalized only after the callback |
 | CP-CB-SPOOF | —                                         | Callback spoofing | High     | Receiver-hook function mutates state with no `msg.sender` check |
 | CP-CB-BATCH | —                                         | Unbounded batch callback | Medium   | Callback fired once per loop iteration with no length cap |
+| CP-121 | [SWC-107](https://swcregistry.io/docs/SWC-107) | Multi-hop cross-contract reentrancy | Critical | DFS traversal of cross-contract call graph; flags chains (A→B→…→A) where originating contract has unfinalized state |
 | GAS-\* | —                                              | Gas optimizations            | Gas      | Storage in loops, packing, `keccak256`, etc.       |
 
 When Slither is installed, all [Slither detectors](https://github.com/crytic/slither/wiki/Detector-Documentation) are merged in with deduplication by line + title. Slither findings are prefixed with `SLITHER-`.
@@ -586,6 +587,20 @@ flowchart TB
 # After building from source
 node packages/cli/dist/cli.js scan examples/contracts/VulnerableVault.sol
 node packages/cli/dist/cli.js scan examples/contracts/SecureVault.sol
+```
+
+CP-121 fixture contracts live under [`examples/contracts/cross-contract-reentrancy/`](examples/contracts/cross-contract-reentrancy/):
+
+| File | Purpose |
+| ---- | ------- |
+| `TwoHopVulnerable.sol` | 2-hop exploitable chain (VaultA → AttackerB → VaultA) |
+| `ThreeHopVulnerable.sol` | 3-hop exploitable chain (VaultX → RouterY → ReceiverZ → VaultX) |
+| `TwoHopGuarded.sol` | CEI-guarded equivalent — should produce zero CP-121 findings |
+| `DeepChain.sol` | 5-hop chain used to verify traversal depth cap enforcement |
+
+```bash
+node packages/cli/dist/cli.js scan examples/contracts/cross-contract-reentrancy/TwoHopVulnerable.sol
+node packages/cli/dist/cli.js scan examples/contracts/cross-contract-reentrancy/TwoHopGuarded.sol
 ```
 
 ### Callback, Hook & Reentrancy Analysis (CP-90)
@@ -663,6 +678,57 @@ resolution depth. General multi-hop cross-contract reentrancy (tracing state
 across separately deployed contracts) is out of scope here and tracked in
 issue #66 — this analysis supplies the standards-aware implicit edges and
 callback-specific rules that feed into that broader picture.
+
+---
+
+## Multi-hop Cross-Contract Reentrancy (CP-121)
+
+`packages/core/src/rules/cp121-cross-contract-reentrancy.ts` detects **cross-contract
+reentrancy chains** — the class of exploit behind several real-world vault/strategy
+drains that are invisible to single-function analysis.
+
+**Threat model.** An attacker deploys Contract B. Contract A calls B (or a chain of
+intermediary contracts eventually reaches B), and B calls back into A while A still
+has unfinalized state. Classic example:
+
+```
+VaultA.withdraw() ──external call──► AttackerB.execute()
+AttackerB.execute() ──re-enters──► VaultA.withdraw()   ← balances still stale
+```
+
+**How it works:**
+
+1. A `CrossContractCallGraph` is built from all `MergedContractView` objects collected
+   during the scan. Edges are added for typed external calls (state variables of a known
+   contract type, explicit casts like `IVault(addr).withdraw()`). Low-level `.call(bytes)`
+   with no resolvable type are not added.
+2. A bounded DFS (default 3 hops, hard cap 10) searches from every node that has at
+   least one cross-contract outgoing edge.
+3. When a path returns to the originating contract, the originating function is checked
+   for **unfinalized state** — a state variable that is *read* before the first external
+   call but not *written* before it.
+4. If unfinalized state is found and no `nonReentrant`-style modifier is present, a
+   `CP-121` finding is emitted with the full `callPath`, an `evidence` array naming the
+   unfinalized variables, `severity: "critical"`, and `swcId: "SWC-107"`.
+
+**Configuration:**
+
+```typescript
+import { detectCrossContractReentrancy } from "@chainproof/core";
+
+const findings = detectCrossContractReentrancy(allViews, { maxDepth: 5 });
+```
+
+| Option | Default | Hard cap | Description |
+| ------ | ------- | -------- | ----------- |
+| `maxDepth` | `3` | `10` | Maximum cross-contract hops to follow |
+
+**Performance.** CP-121 runs once per scan session (not per file). The DFS short-circuits
+any branch whose origin function has no unfinalized state, keeping analysis fast even for
+large protocol codebases. Exceeding the hard cap of 10 silently clamps the depth and emits
+one `info`-severity `CP-121-DEPTH-CAP` finding to inform operators.
+
+**Fixtures.** See [`examples/contracts/cross-contract-reentrancy/`](examples/contracts/cross-contract-reentrancy/) for 2-hop and 3-hop vulnerable contracts, a CEI-guarded safe equivalent, and a deep-chain depth-cap test fixture.
 
 ---
 
