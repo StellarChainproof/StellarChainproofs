@@ -210,6 +210,60 @@ export type {
   ValidatedStakingConfig,
 } from "./staking";
 
+// ─── AMM invariant, slippage, and liquidity accounting analysis ─────────────
+export {
+  analyzeAmmSource,
+  analyzeAmmSources,
+  analyzeAmmFiles,
+  analyzeAmmProject,
+  collectAmmSolidityFiles,
+  analyzeAmmModel,
+  buildAmmModels,
+  detectAmmAccounting,
+  detectAmmInvariants,
+  serializeAmmReportJSON,
+  serializeAmmReportMarkdown,
+  DEFAULT_AMM_LIMITS,
+  resolveAmmLimits,
+  validateAmmConfig,
+  migrateAmmConfig,
+  loadAmmConfigFile,
+  AmmConfigError,
+  AmmAnalysisCancelledError,
+  AMM_CONFIG_SCHEMA_VERSION,
+  AMM_REPORT_SCHEMA_VERSION,
+  AMM_FRAMEWORK_ADAPTERS,
+  matchAmmFrameworkAdapter,
+  getAmmFrameworkAdapter,
+} from "./amm";
+export type {
+  AmmAnalysisConfigInput,
+  AmmAnalysisConfigV0,
+  AmmAnalysisConfigV1,
+  AmmAnalysisLimits,
+  AmmAnalysisOptions,
+  AmmAnalysisReport,
+  AmmCancellationSignal,
+  AmmContractModel,
+  AmmDiagnostic,
+  AmmEvidence,
+  AmmFileAnalysis,
+  AmmFinding,
+  AmmFrameworkAdapter,
+  AmmFrameworkAdapterDefinition,
+  AmmFrameworkAdapterMatch,
+  AmmFunctionRole,
+  AmmOperation,
+  AmmRuleId,
+  AmmSourceInput,
+  AmmSourceLocation,
+  AmmStateVariable,
+  AmmTransition,
+  AmmVariableRole,
+  BuildAmmModelsResult,
+  ValidatedAmmConfig,
+} from "./amm";
+
 // ─── Governance / timelock safety analysis ──────────────────────────────────
 export * from "./governance";
 
