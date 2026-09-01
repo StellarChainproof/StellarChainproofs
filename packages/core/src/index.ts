@@ -210,14 +210,13 @@ export type {
   ValidatedStakingConfig,
 } from "./staking";
 
-// ─── Governance / timelock safety analysis ──────────────────────────────────
-export * from "./governance";
+// ─── Auth, Queue, Isolation, Quota, Audit ────────────────────────────────────
+export * from "./auth";
+export * from "./queue";
+export * from "./isolation";
+export * from "./quota";
+export * from "./audit";
 
-// ─── Cross-chain bridge and message verification analysis ───────────────────
-export * from "./bridge";
-
-// ─── Denial-of-Service, Gas-Griefing & Unbounded-Work Analysis ─────────────
-export * from "./dos";
 export type {
   ParseSpecResult,
   MigrationResult,
