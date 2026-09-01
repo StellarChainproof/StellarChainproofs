@@ -119,6 +119,7 @@ export function createServerInstance(opts: ServerOptions = {}): ServerInstance {
   app.use("/audit", createAuditRouter(auditLogger));
   app.use("/metrics", createMetricsRouter(queueManager, quotaManager));
   app.use("/rules", rulesRouter);
+  app.use("/dos", dosRouter);
 
   // 404 handler
   app.use((_req, res) => {
