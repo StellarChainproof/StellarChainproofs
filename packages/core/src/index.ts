@@ -216,6 +216,12 @@ export * from "./governance";
 // ─── Cross-chain bridge and message verification analysis ───────────────────
 export * from "./bridge";
 
+// ─── Solidity compiler compatibility exports ────────────────────────────────
+export * from "./compiler";
+
+// ─── Returndata safety analysis ─────────────────────────────────────────────
+export * from "./returndata";
+
 // ─── Denial-of-Service, Gas-Griefing & Unbounded-Work Analysis ─────────────
 export * from "./dos";
 export type {
@@ -245,3 +251,17 @@ export type {
   SourceRange,
   SourcePosition,
 } from "./dsl";
+
+// --- Policy Engine Exports ---
+export * from './policy-engine/schemas/policy.schema';
+export * from './policy-engine/resolver/policy-resolver';
+export * from './policy-engine/crypto/exception-signer';
+
+// --- Compiler Module Recovery ---
+export * from './compiler/api';
+export * from './compiler/config';
+export * from './compiler/pragma';
+export * from './compiler/matrix';
+export * from './compiler/semver';
+export * from './compiler/types';
+export * from './compiler/comparator';
