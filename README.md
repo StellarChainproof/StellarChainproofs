@@ -12,7 +12,9 @@
 - [Repository Layout](#repository-layout)
 - [Installation](#installation)
 - [CLI Reference](#cli-reference)
+- [Governance Safety Analysis](#governance-safety-analysis)
 - [Invariant DSL](#invariant-dsl)
+- [Staking Accounting](#staking-accounting)
 - [VS Code Extension](#vs-code-extension)
 - [GitHub Action](#github-action)
 - [Vulnerability Rules](#vulnerability-rules)
@@ -303,6 +305,76 @@ chainproof invariants migrate legacy-spec.json --output vault.cpinv.json
 
 `check` exits `1` if any invariant `fail`s or `error`s, `0` otherwise (`timeout`/`skipped` do not fail the build by themselves — inspect `bounded.timeExceeded`/`stepsExceededIds` in `--format json` output).
 
+### `chainproof governance`
+
+Run the bounded governance, timelock, multisig, and cross-chain proposal safety analyzer:
+
+```bash
+chainproof governance contracts/ --format markdown --output governance-report.md
+chainproof governance contracts/Governor.sol --format json --fail-on high
+chainproof governance contracts/ --include-rule CP-GOV-001 --include-rule CP-GOV-002
+chainproof governance contracts/ --config governance.config.json --include-models
+```
+
+The command emits deterministic, schema-versioned JSON or Markdown. `--fail-on` accepts
+`none|info|low|medium|high|critical`; the default is `high`. Rule include/exclude flags are
+repeatable, and bounded-analysis flags limit sources, files, contracts, functions, operations,
+evidence, and findings. See [Governance Safety Analysis](#governance-safety-analysis).
+
+---
+
+## Governance Safety Analysis
+
+The specialized engine in `packages/core/src/governance/` builds a normalized state-transition
+model for proposal creation, checkpointed voting, quorum math, queue/schedule, timelock delay,
+cancel, execute, multisig signature validation, emergency authority, upgrades, and cross-chain
+message delivery. It traces proposal-controlled target/value/calldata into privileged calls and
+checks guards and state writes in source order.
+
+It recognizes OpenZeppelin Governor and TimelockController shapes, Compound Governor Bravo,
+Safe-style threshold multisigs, cross-chain governors, and generic checkpoint/timelock patterns.
+The ordinary `chainproof scan` pipeline also runs these rules once per physical Solidity file.
+
+```typescript
+import {
+  analyzeGovernanceFiles,
+  serializeGovernanceReport,
+} from '@chainproof/core';
+
+const report = analyzeGovernanceFiles(['contracts/'], {
+  includeModels: true,
+  limits: { maxFindings: 200 },
+  excludeRules: ['CP-GOV-009'],
+});
+process.stdout.write(serializeGovernanceReport(report));
+```
+
+Reports describe structural implementation safety only. They do not judge voter preferences,
+political legitimacy, or whether a proposal's outcome is desirable. Full rule semantics,
+configuration schema, threat model, limitations, and troubleshooting are documented in
+**[docs/governance-safety.md](docs/governance-safety.md)**. Secure/vulnerable fixtures live under
+[`examples/contracts/governance/`](examples/contracts/governance/SecureGovernor.sol).
+
+---
+
+## Staking Accounting
+
+Run the dedicated deterministic analysis for stake shares, accumulated reward
+indexes, epochs, fee-on-transfer/rebasing assets, emergency exits, reward-token
+recovery, and vesting cliffs:
+
+```bash
+chainproof staking contracts/ --format markdown --output staking-report.md
+chainproof staking contracts/ --format json --fail-on none
+```
+
+The output uses schema `1.0.0` and includes precise source locations, ordered
+evidence, assumptions, and confidence. It has no live-network dependency and
+does not estimate investment yield. See
+[the staking accounting guide](docs/staking-accounting.md) for APIs, rules,
+configuration migration, threat model, resource limits, compatibility, fixture
+coverage, rule-author guidance, and troubleshooting.
+
 ---
 
 ## Invariant DSL
@@ -454,6 +526,7 @@ See [`.github/workflows/audit.yml`](.github/workflows/audit.yml) for a complete 
 | CP-CB-READONLY | —                                      | Read-only reentrancy via callback | High     | `view` function exposes a value finalized only after the callback |
 | CP-CB-SPOOF | —                                         | Callback spoofing | High     | Receiver-hook function mutates state with no `msg.sender` check |
 | CP-CB-BATCH | —                                         | Unbounded batch callback | Medium   | Callback fired once per loop iteration with no length cap |
+| CP-121 | [SWC-107](https://swcregistry.io/docs/SWC-107) | Multi-hop cross-contract reentrancy | Critical | DFS traversal of cross-contract call graph; flags chains (A→B→…→A) where originating contract has unfinalized state |
 | GAS-\* | —                                              | Gas optimizations            | Gas      | Storage in loops, packing, `keccak256`, etc.       |
 
 When Slither is installed, all [Slither detectors](https://github.com/crytic/slither/wiki/Detector-Documentation) are merged in with deduplication by line + title. Slither findings are prefixed with `SLITHER-`.
@@ -487,6 +560,20 @@ flowchart TB
 # After building from source
 node packages/cli/dist/cli.js scan examples/contracts/VulnerableVault.sol
 node packages/cli/dist/cli.js scan examples/contracts/SecureVault.sol
+```
+
+CP-121 fixture contracts live under [`examples/contracts/cross-contract-reentrancy/`](examples/contracts/cross-contract-reentrancy/):
+
+| File | Purpose |
+| ---- | ------- |
+| `TwoHopVulnerable.sol` | 2-hop exploitable chain (VaultA → AttackerB → VaultA) |
+| `ThreeHopVulnerable.sol` | 3-hop exploitable chain (VaultX → RouterY → ReceiverZ → VaultX) |
+| `TwoHopGuarded.sol` | CEI-guarded equivalent — should produce zero CP-121 findings |
+| `DeepChain.sol` | 5-hop chain used to verify traversal depth cap enforcement |
+
+```bash
+node packages/cli/dist/cli.js scan examples/contracts/cross-contract-reentrancy/TwoHopVulnerable.sol
+node packages/cli/dist/cli.js scan examples/contracts/cross-contract-reentrancy/TwoHopGuarded.sol
 ```
 
 ### Callback, Hook & Reentrancy Analysis (CP-90)
@@ -564,6 +651,57 @@ resolution depth. General multi-hop cross-contract reentrancy (tracing state
 across separately deployed contracts) is out of scope here and tracked in
 issue #66 — this analysis supplies the standards-aware implicit edges and
 callback-specific rules that feed into that broader picture.
+
+---
+
+## Multi-hop Cross-Contract Reentrancy (CP-121)
+
+`packages/core/src/rules/cp121-cross-contract-reentrancy.ts` detects **cross-contract
+reentrancy chains** — the class of exploit behind several real-world vault/strategy
+drains that are invisible to single-function analysis.
+
+**Threat model.** An attacker deploys Contract B. Contract A calls B (or a chain of
+intermediary contracts eventually reaches B), and B calls back into A while A still
+has unfinalized state. Classic example:
+
+```
+VaultA.withdraw() ──external call──► AttackerB.execute()
+AttackerB.execute() ──re-enters──► VaultA.withdraw()   ← balances still stale
+```
+
+**How it works:**
+
+1. A `CrossContractCallGraph` is built from all `MergedContractView` objects collected
+   during the scan. Edges are added for typed external calls (state variables of a known
+   contract type, explicit casts like `IVault(addr).withdraw()`). Low-level `.call(bytes)`
+   with no resolvable type are not added.
+2. A bounded DFS (default 3 hops, hard cap 10) searches from every node that has at
+   least one cross-contract outgoing edge.
+3. When a path returns to the originating contract, the originating function is checked
+   for **unfinalized state** — a state variable that is *read* before the first external
+   call but not *written* before it.
+4. If unfinalized state is found and no `nonReentrant`-style modifier is present, a
+   `CP-121` finding is emitted with the full `callPath`, an `evidence` array naming the
+   unfinalized variables, `severity: "critical"`, and `swcId: "SWC-107"`.
+
+**Configuration:**
+
+```typescript
+import { detectCrossContractReentrancy } from "@chainproof/core";
+
+const findings = detectCrossContractReentrancy(allViews, { maxDepth: 5 });
+```
+
+| Option | Default | Hard cap | Description |
+| ------ | ------- | -------- | ----------- |
+| `maxDepth` | `3` | `10` | Maximum cross-contract hops to follow |
+
+**Performance.** CP-121 runs once per scan session (not per file). The DFS short-circuits
+any branch whose origin function has no unfinalized state, keeping analysis fast even for
+large protocol codebases. Exceeding the hard cap of 10 silently clamps the depth and emits
+one `info`-severity `CP-121-DEPTH-CAP` finding to inform operators.
+
+**Fixtures.** See [`examples/contracts/cross-contract-reentrancy/`](examples/contracts/cross-contract-reentrancy/) for 2-hop and 3-hop vulnerable contracts, a CEI-guarded safe equivalent, and a deep-chain depth-cap test fixture.
 
 ---
 

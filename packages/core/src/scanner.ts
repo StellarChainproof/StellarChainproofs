@@ -177,6 +177,21 @@ async function scanFile(
         ]
       : runRulesOnFile(ast, source, filePath, config);
 
+  // Staking accounting is intentionally evaluated once per physical source
+  // file. Its model already separates contracts, so running it per merged
+  // inheritance view would duplicate evidence and findings.
+  findings.push(...detectStakingAccounting(ast, source, filePath));
+
+  // The governance engine models all contracts in a physical file together. Run it once
+  // here rather than once per merged inheritance view, which would duplicate findings.
+  findings.push(...detectGovernanceSafety(ast, source, filePath));
+
+  // Bridge analysis runs once per physical file, similar to governance and staking.
+  findings.push(...detectBridgeSafety(ast, source, filePath));
+
+  // DoS and Unbounded Work analysis runs once per physical file.
+  findings.push(...detectDosVulnerabilities(ast, source, filePath));
+
   if (config.plugins) {
     for (const plugin of config.plugins) {
       for (const rule of plugin.rules) {
@@ -317,18 +332,37 @@ export async function scan(config: ScanConfig): Promise<ScanResult> {
   const files = collectSolFiles(config.targets);
   const graph = files.length > 0 ? buildImportGraph(files) : undefined;
   const viewsByFile = new Map<string, MergedContractView[]>();
+  const allViews: MergedContractView[] = [];
 
   if (graph && hasImportDirectives(graph)) {
     for (const view of buildMergedContractViews(graph)) {
       const views = viewsByFile.get(view.file) ?? [];
       views.push(view);
       viewsByFile.set(view.file, views);
+      allViews.push(view);
     }
   }
 
   const fileResults = await Promise.all(
     files.map((f) => scanFile(f, config, graph, viewsByFile.get(path.resolve(f))))
   );
+
+  // CP-121: run cross-contract reentrancy detection once per session over all views.
+  // Findings are attributed to each originating contract's source file.
+  if (allViews.length > 0) {
+    const cp121Findings = detectCrossContractReentrancy(allViews);
+    for (const finding of cp121Findings) {
+      const target = fileResults.find(
+        (r) => path.resolve(r.file) === path.resolve(finding.file)
+      );
+      if (target) {
+        target.findings.push(finding);
+      } else if (fileResults.length > 0) {
+        // Fallback: attach to the first file result if exact file not found
+        fileResults[0].findings.push(finding);
+      }
+    }
+  }
 
   let allMetrics: ContractMetrics[] = [];
   const complexityFindings: Finding[] = [];

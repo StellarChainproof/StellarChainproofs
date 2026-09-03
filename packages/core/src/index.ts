@@ -180,6 +180,68 @@ export {
   CorruptArtifactError,
   MigrationError,
 } from "./dsl";
+
+// ─── Staking, Reward, and Vesting Accounting ────────────────────────────────
+export {
+  analyzeStakingSource,
+  analyzeStakingSources,
+  analyzeStakingFiles,
+  analyzeStakingProject,
+  collectStakingSolidityFiles,
+  analyzeStakingModel,
+  buildStakingModels,
+  detectStakingAccounting,
+  serializeStakingReportJSON,
+  serializeStakingReportMarkdown,
+  DEFAULT_STAKING_LIMITS,
+  resolveStakingLimits,
+  validateStakingConfig,
+  migrateStakingConfig,
+  loadStakingConfigFile,
+  StakingConfigError,
+  StakingAnalysisCancelledError,
+  STAKING_CONFIG_SCHEMA_VERSION,
+  STAKING_REPORT_SCHEMA_VERSION,
+  STAKING_FRAMEWORK_ADAPTERS,
+  matchStakingFrameworkAdapter,
+  getStakingFrameworkAdapter,
+} from "./staking";
+export type {
+  AccountingFunctionRole,
+  AccountingOperation,
+  AccountingStateVariable,
+  AccountingTransition,
+  AccountingVariableRole,
+  BuildModelsResult,
+  StakingAnalysisConfigInput,
+  StakingAnalysisConfigV0,
+  StakingAnalysisConfigV1,
+  StakingAnalysisLimits,
+  StakingAnalysisOptions,
+  StakingAnalysisReport,
+  StakingCancellationSignal,
+  StakingContractModel,
+  StakingDiagnostic,
+  StakingEvidence,
+  StakingFileAnalysis,
+  StakingFinding,
+  StakingFrameworkAdapter,
+  StakingFrameworkAdapterDefinition,
+  StakingFrameworkAdapterMatch,
+  StakingRuleId,
+  StakingSourceInput,
+  StakingSourceLocation,
+  ValidatedStakingConfig,
+} from "./staking";
+
+// ─── Governance / timelock safety analysis ──────────────────────────────────
+export * from "./governance";
+
+// ─── Cross-chain bridge and message verification analysis ───────────────────
+export * from "./bridge";
+
+// ─── Denial-of-Service, Gas-Griefing & Unbounded-Work Analysis ─────────────
+export * from "./dos";
 export type {
   ParseSpecResult,
   MigrationResult,
@@ -207,4 +269,3 @@ export type {
   SourceRange,
   SourcePosition,
 } from "./dsl";
-

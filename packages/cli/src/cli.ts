@@ -29,6 +29,10 @@ import type { ScanConfig, ScanResult } from "@chainproof/core";
 import type { ServerOptions } from "@chainproof/server";
 import { registerWatchCommand } from "./commands/watch";
 import { registerInvariantsCommand } from "./commands/invariants";
+import { registerStakingCommand } from "./commands/staking";
+import { registerGovernanceCommand } from "./commands/governance";
+import { registerBridgeCommand } from "./commands/bridge";
+import { registerDosCommand } from "./commands/dos";
 
 // ─── ASCII Banner ─────────────────────────────────────────────────────────────
 
@@ -649,5 +653,9 @@ program
 
 registerWatchCommand(program, printBanner);
 registerInvariantsCommand(program, printBanner);
+registerStakingCommand(program);
+registerGovernanceCommand(program, printBanner);
+registerBridgeCommand(program, printBanner);
+registerDosCommand(program, printBanner);
 
 program.parse();
