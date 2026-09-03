@@ -8,6 +8,8 @@
  */
 export type Severity = "critical" | "high" | "medium" | "low" | "info" | "gas";
 
+import type { ERC4337AnalysisOptions } from "./erc4337/types";
+
 // ─── A single detected issue ──────────────────────────────────────────────────
 
 /**
@@ -302,6 +304,8 @@ export interface ScanConfig {
 
   /** Slither detector allowlist/denylist. No effect unless `useSlither` is `true`. */
   slither?: SlitherConfig;
+  /** Version-aware ERC-4337 account-abstraction analysis options. */
+  erc4337?: ERC4337AnalysisOptions;
 }
 
 // ─── Scan Diff Result ────────────────────────────────────────────────────────

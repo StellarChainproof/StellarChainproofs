@@ -56,11 +56,35 @@ export {
 } from "./report/generator";
 export { diffScans, computeFingerprint } from "./diff";
 export { isSlitherAvailable } from "./ast/slither";
+export { analyzeERC4337, detectERC4337 } from "./erc4337/analyzer";
+export {
+  getERC4337Adapter,
+  listERC4337Adapters,
+  detectERC4337Version,
+  adapterSupportsFunction,
+  canonicalUserOperationFields,
+} from "./erc4337/adapters";
+export type { ERC4337Adapter } from "./erc4337/adapters";
+export type {
+  ERC4337Version,
+  ERC4337Component,
+  ERC4337DiagnosticCode,
+  ERC4337AnalysisOptions,
+  ERC4337AnalysisLimits,
+  ERC4337AnalysisResult,
+  ERC4337Diagnostic,
+  UserOperationModel,
+  ValidationDataModel,
+  NonceModel,
+  EntryPointModel,
+  PaymasterModel,
+} from "./erc4337/types";
 export { loadPlugin, loadPlugins } from "./plugins";
 export {
   loadConfigFile,
   mergePluginsFromConfig,
   mergeSlitherConfigFromConfig,
+  mergeERC4337ConfigFromConfig,
 } from "./config";
 export type { ChainProofConfig } from "./config";
 

@@ -12,7 +12,7 @@ import {
   clearCache,
   isSlitherAvailable,
 } from "@chainproof/core";
-import type { ScanConfig, ScanResult, ScanDiff } from "@chainproof/core";
+import type { ScanConfig, ScanResult, ScanDiff, ERC4337Version } from "@chainproof/core";
 
 // ─── Build PR comment (Standard) ──────────────────────────────────────────────
 
@@ -204,6 +204,8 @@ async function run() {
     const uploadReport = core.getInput("upload-report") === "true";
     const failOnGas = core.getInput("fail-on-gas") === "true";
     const diffRefInput = core.getInput("diff-ref");
+    const erc4337Version = core.getInput("erc4337-version") || "auto";
+    const erc4337MaxDiagnostics = Number(core.getInput("erc4337-max-diagnostics") || "100");
 
     core.info(`[ChainProof] Scanning: ${targets.join(", ")}`);
     core.info(`[ChainProof] Min severity: ${minSeverity}`);
@@ -218,6 +220,10 @@ async function run() {
       useMetrics,
       apiKey,
       minSeverity,
+      erc4337: {
+        version: erc4337Version as ERC4337Version | "auto",
+        limits: { maxDiagnostics: erc4337MaxDiagnostics },
+      },
     };
 
     const result = await scan(config);

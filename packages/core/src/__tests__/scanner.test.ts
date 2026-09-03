@@ -10,6 +10,10 @@ const SECURE_PATH = path.resolve(
   __dirname,
   "../../../../examples/contracts/SecureVault.sol"
 );
+const ERC4337_PATH = path.resolve(
+  __dirname,
+  "../../../../examples/contracts/erc4337/VulnerableAccount4337.sol"
+);
 
 describe("scan() — integration", () => {
   it("returns a valid ScanResult structure", async () => {
@@ -123,5 +127,17 @@ describe("scan() — integration", () => {
     const dir = path.resolve(__dirname, "../../../../examples/contracts");
     const result = await scan({ targets: [dir], useSlither: false, useLLM: false, useMetrics: false });
     expect(result.files.length).toBeGreaterThan(0);
+  });
+
+  it("registers ERC-4337 rules in the standard scan pipeline", async () => {
+    const result = await scan({
+      targets: [ERC4337_PATH],
+      useSlither: false,
+      useLLM: false,
+      useMetrics: false,
+    });
+    const ids = result.files.flatMap((file) => file.findings.map((finding) => finding.id));
+    expect(ids).toContain("CP-4337-NONCE_REPLAY");
+    expect(ids).toContain("CP-4337-PAYMASTER_POSTOP");
   });
 });

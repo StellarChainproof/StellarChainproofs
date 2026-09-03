@@ -222,6 +222,10 @@ async function scanDocument(document: vscode.TextDocument) {
     useMetrics: config.get("useMetrics") ?? true,
     apiKey,
     minSeverity: config.get("minSeverity") ?? "low",
+    erc4337: {
+      version: config.get("erc4337Version") ?? "auto",
+      limits: { maxDiagnostics: config.get("erc4337MaxDiagnostics") ?? 100 },
+    },
     plugins,
   };
 

@@ -28,11 +28,7 @@ import {
 } from "./rules/erc-compliance";
 import { detectVaultInflation } from "./rules/cp122-vault-inflation";
 import { detectCallbackReentrancy } from "./rules/callback-analysis";
-import { detectCrossContractReentrancy } from "./rules/cp121-cross-contract-reentrancy";
-import { detectStakingAccounting } from "./staking";
-import { detectGovernanceSafety } from "./governance";
-import { detectBridgeSafety } from "./bridge";
-import { detectDosVulnerabilities } from "./dos";
+import { detectERC4337 } from "./erc4337/analyzer";
 import { RuleOptions } from "./rules/rule-context";
 import { detectGasIssues } from "./rules/gas-optimizer";
 import { enhanceFindingsWithLLM } from "./llm/enhancer";
@@ -106,13 +102,15 @@ function runRulesOnView(
     ...runERCChecks(view.node, view.source, view.file, ruleOptions),
     ...detectVaultInflation(view.node, view.source, view.file, ruleOptions),
     ...detectCallbackReentrancy(view.node, view.source, view.file, ruleOptions),
+    ...detectERC4337(view.node, view.source, view.file, config.erc4337),
   ];
 }
 
 function runRulesOnFile(
   ast: NonNullable<ReturnType<typeof parseSolidity>["ast"]>,
   source: string,
-  filePath: string
+  filePath: string,
+  config: ScanConfig,
 ): Finding[] {
   return [
     ...detectReentrancy(ast, source, filePath),
@@ -123,6 +121,7 @@ function runRulesOnFile(
     ...detectUncheckedReturn(ast, source, filePath),
     ...runERCChecks(ast, source, filePath),
     ...detectVaultInflation(ast, source, filePath),
+    ...detectERC4337(ast, source, filePath, config.erc4337),
   ];
 }
 
@@ -176,7 +175,7 @@ async function scanFile(
           ...detectIntegerOverflow(ast, source, filePath),
           ...detectUncheckedReturn(ast, source, filePath),
         ]
-      : runRulesOnFile(ast, source, filePath);
+      : runRulesOnFile(ast, source, filePath, config);
 
   // Staking accounting is intentionally evaluated once per physical source
   // file. Its model already separates contracts, so running it per merged

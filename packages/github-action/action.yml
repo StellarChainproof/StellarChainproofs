@@ -47,6 +47,16 @@ inputs:
     required: false
     default: ""
 
+  erc4337-version:
+    description: "ERC-4337 adapter version: auto|0.6|0.7|0.8"
+    required: false
+    default: "auto"
+
+  erc4337-max-diagnostics:
+    description: "Maximum ERC-4337 diagnostics per file"
+    required: false
+    default: "100"
+
 outputs:
   critical-count:
     description: "Number of critical severity findings"

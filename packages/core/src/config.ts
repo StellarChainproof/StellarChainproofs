@@ -2,10 +2,12 @@ import * as fs from "fs";
 import * as path from "path";
 import { loadPlugins } from "./plugins";
 import type { ScanConfig, SlitherConfig } from "./types";
+import type { ERC4337AnalysisOptions } from "./erc4337/types";
 
 export interface ChainProofConfig {
   plugins?: string[];
   slither?: SlitherConfig;
+  erc4337?: ERC4337AnalysisOptions;
   [key: string]: unknown;
 }
 
@@ -115,4 +117,13 @@ export function mergeSlitherConfigFromConfig(
     ...config,
     slither: configFile.slither,
   };
+}
+
+/** Merge versioned ERC-4337 settings while preserving explicit scan options. */
+export function mergeERC4337ConfigFromConfig(
+  config: ScanConfig,
+  configFile?: ChainProofConfig | null,
+): ScanConfig {
+  if (!configFile?.erc4337 || config.erc4337) return config;
+  return { ...config, erc4337: configFile.erc4337 };
 }
