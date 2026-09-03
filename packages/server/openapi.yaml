@@ -72,6 +72,25 @@ components:
           type: string
         llmEnhanced:
           type: boolean
+        evidence:
+          type: array
+          items:
+            type: object
+            required: [description]
+            properties:
+              description:
+                type: string
+              file:
+                type: string
+              line:
+                type: integer
+        assumptions:
+          type: array
+          items:
+            type: string
+        confidence:
+          type: string
+          enum: [high, medium, low]
 
     # ── GasHint ───────────────────────────────────────────────────────────────
     GasHint:
@@ -168,6 +187,23 @@ components:
         llmModel:
           type: string
           example: claude-3-5-sonnet-20241022
+        erc4337:
+          $ref: "#/components/schemas/ERC4337AnalysisOptions"
+
+    ERC4337AnalysisOptions:
+      type: object
+      properties:
+        version:
+          type: string
+          enum: [auto, "0.6", "0.7", "0.8"]
+          default: auto
+        limits:
+          type: object
+          properties:
+            maxSourceLength: { type: integer, minimum: 1000, maximum: 2000000 }
+            maxFunctions: { type: integer, minimum: 1, maximum: 10000 }
+            maxDiagnostics: { type: integer, minimum: 1, maximum: 1000 }
+            maxEvidenceItems: { type: integer, minimum: 1, maximum: 32 }
 
     # ── RuleMeta ──────────────────────────────────────────────────────────────
     RuleMeta:

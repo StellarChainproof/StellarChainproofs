@@ -82,6 +82,19 @@
           "enum": ["critical", "high", "medium", "low", "info"],
           "default": "low",
           "description": "Minimum severity level to display"
+        },
+        "chainproof.erc4337Version": {
+          "type": "string",
+          "enum": ["auto", "0.6", "0.7", "0.8"],
+          "default": "auto",
+          "description": "ERC-4337 EntryPoint adapter version"
+        },
+        "chainproof.erc4337MaxDiagnostics": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 1000,
+          "default": 100,
+          "description": "Maximum ERC-4337 diagnostics per file"
         }
       }
     },

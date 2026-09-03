@@ -20,6 +20,7 @@ import {
   loadPlugins,
   loadConfigFile,
   mergePluginsFromConfig,
+  mergeERC4337ConfigFromConfig,
   generateThreatModel,
   generateMarkdownThreatModel,
   generateJSONThreatModel,
@@ -86,6 +87,8 @@ program
   )
   .option("--format <format>", "Output format: table|json|markdown", "table")
   .option("--output <file>", "Write report to file instead of stdout")
+  .option("--erc4337-version <version>", "ERC-4337 adapter version: auto|0.6|0.7|0.8", "auto")
+  .option("--erc4337-max-diagnostics <number>", "Maximum ERC-4337 diagnostics per file", "100")
   .option(
     "--plugin <plugin>",
     "Load a custom plugin (can be used multiple times)",
@@ -107,6 +110,8 @@ program
         format: string;
         output?: string;
         plugin: string[];
+        erc4337Version: string;
+        erc4337MaxDiagnostics: string;
       },
     ) => {
 
@@ -142,6 +147,7 @@ program
 
       // Load plugins from CLI or config file
       let plugins = [];
+      let configuredERC4337: ScanConfig["erc4337"] | undefined;
       if (opts.plugin.length > 0) {
         plugins = loadPlugins(opts.plugin);
       } else {
@@ -158,6 +164,17 @@ program
           configFile,
         );
         plugins = merged.plugins || [];
+        configuredERC4337 = mergeERC4337ConfigFromConfig(
+          {
+            targets,
+            useSlither,
+            useLLM,
+            useMetrics,
+            apiKey,
+            minSeverity: opts.minSeverity as ScanConfig["minSeverity"],
+          },
+          configFile,
+        ).erc4337;
       }
 
       console.log(
@@ -182,6 +199,10 @@ program
         minSeverity: opts.minSeverity as ScanConfig["minSeverity"],
         outputFormat: opts.format as ScanConfig["outputFormat"],
         plugins,
+        erc4337: configuredERC4337 ?? {
+          version: opts.erc4337Version as "auto" | "0.6" | "0.7" | "0.8",
+          limits: { maxDiagnostics: Number(opts.erc4337MaxDiagnostics) },
+        },
       };
 
       let result;
@@ -467,6 +488,7 @@ program
       outputFormat: "markdown",
       output: "audit-report.md",
       plugins: [],
+      erc4337: { version: "auto", limits: { maxDiagnostics: 100 } },
     };
     const configPath = path.join(process.cwd(), ".chainproofrc.json");
     if (fs.existsSync(configPath)) {

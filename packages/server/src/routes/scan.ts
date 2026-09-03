@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import { scan } from "@chainproof/core";
-import type { ScanConfig, Severity } from "@chainproof/core";
+import type { ScanConfig, Severity, ERC4337AnalysisOptions } from "@chainproof/core";
 
 const router = Router();
 
@@ -24,6 +24,7 @@ interface ScanRequestBody {
     apiKey?: string;
     llmProvider?: string;
     llmModel?: string;
+    erc4337?: ERC4337AnalysisOptions;
   };
 }
 
@@ -88,6 +89,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       apiKey: cfg.apiKey ?? process.env.ANTHROPIC_API_KEY,
       llmProvider: cfg.llmProvider,
       llmModel: cfg.llmModel,
+      erc4337: cfg.erc4337,
     };
 
     const result = await scan(config);
@@ -171,6 +173,7 @@ router.post("/file", async (req: Request, res: Response): Promise<void> => {
       apiKey: cfg.apiKey ?? process.env.ANTHROPIC_API_KEY,
       llmProvider: cfg.llmProvider,
       llmModel: cfg.llmModel,
+      erc4337: cfg.erc4337,
     };
 
 
